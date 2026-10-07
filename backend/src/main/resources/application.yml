@@ -1,0 +1,19 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: forgex-backend
+
+forgex:
+  ai-service:
+    url: ${FORGEX_AI_SERVICE_URL:http://localhost:8000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
