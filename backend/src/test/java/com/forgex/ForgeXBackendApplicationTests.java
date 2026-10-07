@@ -1,6 +1,14 @@
 package com.forgex;
 
+import com.forgex.dto.AuthRequest;
+import com.forgex.dto.AuthResponse;
+import com.forgex.dto.RegisterRequest;
+import com.forgex.entity.Role;
+import com.forgex.entity.User;
 import com.forgex.model.TrustScoreResult;
+import com.forgex.repository.UserRepository;
+import com.forgex.security.JwtTokenProvider;
+import com.forgex.service.AuthService;
 import com.forgex.service.TrustScoreService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,9 +22,40 @@ class ForgeXBackendApplicationTests {
     @Autowired
     private TrustScoreService trustScoreService;
 
+    @Autowired
+    private AuthService authService;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+
     @Test
     void contextLoads() {
         assertNotNull(trustScoreService);
+        assertNotNull(authService);
+        assertNotNull(userRepository);
+    }
+
+    @Test
+    void testAuthWorkflow_RegisterAndLogin() {
+        String testEmail = "testuser_" + System.currentTimeMillis() + "@forgex.io";
+        RegisterRequest registerReq = new RegisterRequest("Test Engineer", testEmail, "SecretPass123!", "DEVELOPER");
+        AuthResponse registered = authService.register(registerReq);
+
+        assertNotNull(registered.getToken());
+        assertEquals("Test Engineer", registered.getName());
+        assertEquals(Role.ROLE_DEVELOPER.name(), registered.getRole());
+
+        // Verify JWT validity
+        assertTrue(jwtTokenProvider.validateToken(registered.getToken()));
+        assertEquals(testEmail, jwtTokenProvider.getEmailFromToken(registered.getToken()));
+
+        // Login check
+        AuthRequest loginReq = new AuthRequest(testEmail, "SecretPass123!");
+        AuthResponse loggedIn = authService.login(loginReq);
+        assertNotNull(loggedIn.getToken());
     }
 
     @Test
