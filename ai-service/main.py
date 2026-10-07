@@ -6,13 +6,17 @@ from models import (
     RepoAnalyzeRequest, RepoAnalysisResponse,
     DevPlanRequest, DevPlanResponse,
     CodeAgentExecuteRequest, CodeAgentExecuteResponse,
-    SecurityScanRequest, SecurityScanResponse
+    TestGenRequest, TestGenResponse,
+    CodeReviewRequest, CodeReviewResponse,
+    SecurityScanRequest, SecurityScanResponse,
+    TrustScoreRequest, TrustScoreResponse,
+    MonitoringMetricsResponse
 )
 import services
 
 app = FastAPI(
     title="ForgeX AI Engine & DevSecOps Intelligence Service",
-    description="Agentic Software Engineering microservice powering requirements analysis, RAG code intelligence, Dev Planner, and Governed Coding Agent.",
+    description="Agentic Software Engineering microservice powering requirements analysis, RAG code intelligence, Dev Planner, Automated Test Generation, AI Code Review, DevSecOps Security Scanning, and AI Trust Score Governance.",
     version="2.0.0"
 )
 
@@ -36,7 +40,12 @@ def health_check():
             "PHASE_9_RAG_CODE_KNOWLEDGE",
             "PHASE_10_REPO_ANALYZER",
             "PHASE_11_AI_DEV_PLANNER",
-            "PHASE_12_AI_CODING_AGENT"
+            "PHASE_12_AI_CODING_AGENT",
+            "PHASE_13_AUTOMATED_TEST_GENERATOR",
+            "PHASE_14_AI_CODE_REVIEW_AGENT",
+            "PHASE_15_SECURITY_SCANNER",
+            "PHASE_16_AI_TRUST_SCORE",
+            "PHASE_20_PRODUCTION_MONITORING"
         ]
     }
 
@@ -65,10 +74,30 @@ def api_dev_planner(req: DevPlanRequest):
 def api_coding_agent(req: CodeAgentExecuteRequest):
     return services.execute_coding_agent(req)
 
-# DevSecOps Security Scan
+# Phase 13: Automated Test Generation
+@app.post("/api/ai/test-generator", response_model=TestGenResponse)
+def api_test_generator(req: TestGenRequest):
+    return services.generate_tests(req)
+
+# Phase 14: AI Code Review Agent
+@app.post("/api/ai/code-review", response_model=CodeReviewResponse)
+def api_code_review(req: CodeReviewRequest):
+    return services.review_pull_request(req)
+
+# Phase 15: Security Scanner (DevSecOps)
 @app.post("/api/ai/security-scan", response_model=SecurityScanResponse)
 def api_security_scan(req: SecurityScanRequest):
-    return services.perform_security_scan(req)
+    return services.run_devsecops_scanner(req)
+
+# Phase 16: AI Trust Score ⭐
+@app.post("/api/ai/trust-score", response_model=TrustScoreResponse)
+def api_trust_score(req: TrustScoreRequest):
+    return services.calculate_trust_score(req)
+
+# Phase 20: Production Observability / Monitoring
+@app.get("/api/ai/monitoring", response_model=MonitoringMetricsResponse)
+def api_monitoring():
+    return services.get_production_monitoring()
 
 if __name__ == "__main__":
     import uvicorn

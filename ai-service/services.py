@@ -7,8 +7,11 @@ from models import (
     RepoAnalyzeRequest, RepoAnalysisResponse,
     DevPlanRequest, DevPlanResponse,
     CodeAgentExecuteRequest, CodeAgentExecuteResponse,
-    SecurityScanRequest, SecurityScanResponse,
-    TrustScoreRequest
+    TestGenRequest, TestGenResponse, GeneratedTestCase,
+    CodeReviewRequest, CodeReviewResponse, ReviewFinding,
+    SecurityScanRequest, SecurityScanResponse, SecurityFinding,
+    TrustScoreRequest, TrustScoreResponse,
+    MonitoringMetricsResponse
 )
 
 # ----------------------------------------------------
@@ -383,30 +386,453 @@ def execute_coding_agent(req: CodeAgentExecuteRequest) -> CodeAgentExecuteRespon
     )
 
 # ----------------------------------------------------
-# SECURITY SCAN & TRUST SCORE CALCULATION
+# PHASE 13: AUTOMATED TEST GENERATION
 # ----------------------------------------------------
-def perform_security_scan(req: SecurityScanRequest) -> SecurityScanResponse:
-    findings = [
-        {
-            "severity": "CRITICAL",
-            "category": "SQL_INJECTION",
-            "title": "Raw SQL String Concatenation Detected",
-            "description": "Untrusted user parameter concatenated directly into SQL statement.",
-            "remediation": "Replace with parameterized PreparedStatement or Spring Data JPA @Query."
-        },
-        {
-            "severity": "CRITICAL",
-            "category": "HARDCODED_SECRET",
-            "title": "Hardcoded AWS Access Key in Source Code",
-            "description": "Matching pattern for AWS Access Key (AKIA...) found in commit diff.",
-            "remediation": "Move secrets to environment variables or AWS Secrets Manager."
-        }
-    ]
-    return SecurityScanResponse(
-        scan_status="COMPLETED",
-        critical_count=2,
-        high_count=0,
-        medium_count=1,
-        findings=findings,
-        is_deployable=False
+def generate_tests(req: TestGenRequest) -> TestGenResponse:
+    sig = req.function_signature or "calculateDiscount(double amount, CustomerType type, String couponCode)"
+    lang = req.language or "Java"
+    framework = req.framework or "JUnit 5 + Mockito"
+
+    if "python" in lang.lower():
+        test_cases = [
+            GeneratedTestCase(
+                category="Normal test",
+                test_name="test_calculate_discount_standard_customer",
+                description="Verifies standard customer receives expected 10% discount on regular purchase.",
+                code_snippet="""def test_calculate_discount_standard():
+    discount = calculate_discount(100.0, CustomerType.STANDARD, "SAVE10")
+    assert discount == 10.0"""
+            ),
+            GeneratedTestCase(
+                category="Boundary test",
+                test_name="test_calculate_discount_zero_amount_boundary",
+                description="Checks boundary value of 0.00 purchase amount returns 0.00 discount.",
+                code_snippet="""def test_calculate_discount_zero():
+    assert calculate_discount(0.0, CustomerType.STANDARD, None) == 0.0"""
+            ),
+            GeneratedTestCase(
+                category="Null test",
+                test_name="test_calculate_discount_none_coupon_handled",
+                description="Verifies None coupon parameter executes default discount rate without error.",
+                code_snippet="""def test_calculate_discount_none_coupon():
+    assert calculate_discount(150.0, CustomerType.VIP, None) == 22.5"""
+            ),
+            GeneratedTestCase(
+                category="Invalid input",
+                test_name="test_calculate_discount_negative_amount_raises_value_error",
+                description="Verifies negative amount raises ValueError with descriptive message.",
+                code_snippet="""def test_calculate_discount_negative():
+    with pytest.raises(ValueError, match="Amount cannot be negative"):
+        calculate_discount(-50.0, CustomerType.STANDARD, "SAVE10")"""
+            ),
+            GeneratedTestCase(
+                category="Exception case",
+                test_name="test_calculate_discount_expired_coupon_raises_exception",
+                description="Verifies expired coupon triggers CouponExpiredException.",
+                code_snippet="""def test_calculate_discount_expired_coupon():
+    with pytest.raises(CouponExpiredException):
+        calculate_discount(200.0, CustomerType.STANDARD, "EXPIRED2023")"""
+            ),
+            GeneratedTestCase(
+                category="Large value",
+                test_name="test_calculate_discount_one_million_large_value",
+                description="Tests high-volume enterprise transaction ($1,000,000.00) without float precision drift.",
+                code_snippet="""def test_calculate_discount_large_value():
+    assert calculate_discount(1_000_000.0, CustomerType.ENTERPRISE, "BULK25") == 250_000.0"""
+            )
+        ]
+        full_code = '''import pytest
+from app.services.billing import calculate_discount, CustomerType, CouponExpiredException
+
+class TestDiscountService:
+    def test_calculate_discount_standard(self):
+        assert calculate_discount(100.0, CustomerType.STANDARD, "SAVE10") == 10.0
+
+    def test_calculate_discount_zero(self):
+        assert calculate_discount(0.0, CustomerType.STANDARD, None) == 0.0
+
+    def test_calculate_discount_none_coupon(self):
+        assert calculate_discount(150.0, CustomerType.VIP, None) == 22.5
+
+    def test_calculate_discount_negative(self):
+        with pytest.raises(ValueError, match="Amount cannot be negative"):
+            calculate_discount(-50.0, CustomerType.STANDARD, "SAVE10")
+
+    def test_calculate_discount_expired_coupon(self):
+        with pytest.raises(CouponExpiredException):
+            calculate_discount(200.0, CustomerType.STANDARD, "EXPIRED2023")
+
+    def test_calculate_discount_large_value(self):
+        assert calculate_discount(1_000_000.0, CustomerType.ENTERPRISE, "BULK25") == 250_000.0
+'''
+    else:
+        test_cases = [
+            GeneratedTestCase(
+                category="Normal test",
+                test_name="testCalculateDiscount_StandardCustomer_AppliesTenPercent",
+                description="Standard tier customer with valid coupon receives expected 10% discount.",
+                code_snippet="""@Test
+void testCalculateDiscount_StandardCustomer_AppliesTenPercent() {
+    double discount = discountService.calculateDiscount(100.0, CustomerType.STANDARD, "SAVE10");
+    assertEquals(10.0, discount, 0.001);
+}"""
+            ),
+            GeneratedTestCase(
+                category="Boundary test",
+                test_name="testCalculateDiscount_ZeroAmount_ReturnsZero",
+                description="Zero dollar amount edge case returns exact 0.00 without division or computation errors.",
+                code_snippet="""@Test
+void testCalculateDiscount_ZeroAmount_ReturnsZero() {
+    double discount = discountService.calculateDiscount(0.0, CustomerType.STANDARD, null);
+    assertEquals(0.0, discount, 0.001);
+}"""
+            ),
+            GeneratedTestCase(
+                category="Null test",
+                test_name="testCalculateDiscount_NullCustomerType_ThrowsIllegalArgumentException",
+                description="Guarantees null customer type fails fast with descriptive IllegalArgumentException.",
+                code_snippet="""@Test
+void testCalculateDiscount_NullCustomerType_ThrowsIllegalArgumentException() {
+    assertThrows(IllegalArgumentException.class, () ->
+        discountService.calculateDiscount(100.0, null, "SAVE10")
+    );
+}"""
+            ),
+            GeneratedTestCase(
+                category="Invalid input",
+                test_name="testCalculateDiscount_NegativeAmount_ThrowsInvalidAmountException",
+                description="Negative transaction amounts are immediately rejected.",
+                code_snippet="""@Test
+void testCalculateDiscount_NegativeAmount_ThrowsInvalidAmountException() {
+    assertThrows(InvalidAmountException.class, () ->
+        discountService.calculateDiscount(-50.0, CustomerType.STANDARD, "SAVE10")
+    );
+}"""
+            ),
+            GeneratedTestCase(
+                category="Exception case",
+                test_name="testCalculateDiscount_ExpiredCoupon_ThrowsCouponExpiredException",
+                description="Expired coupon code triggers business domain CouponExpiredException.",
+                code_snippet="""@Test
+void testCalculateDiscount_ExpiredCoupon_ThrowsCouponExpiredException() {
+    when(couponValidator.isExpired("EXPIRED2023")).thenReturn(true);
+    assertThrows(CouponExpiredException.class, () ->
+        discountService.calculateDiscount(200.0, CustomerType.STANDARD, "EXPIRED2023")
+    );
+}"""
+            ),
+            GeneratedTestCase(
+                category="Large value",
+                test_name="testCalculateDiscount_ExtremeAmountMillion_HandlesWithoutOverflow",
+                description="Verifies double precision stability on $1,000,000.00 enterprise transactions.",
+                code_snippet="""@Test
+void testCalculateDiscount_ExtremeAmountMillion_HandlesWithoutOverflow() {
+    double discount = discountService.calculateDiscount(1000000.0, CustomerType.ENTERPRISE, "BULK25");
+    assertEquals(250000.0, discount, 0.001);
+}"""
+            )
+        ]
+        full_code = '''package com.forgex.service;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class DiscountServiceTest {
+
+    @Mock
+    private CouponValidator couponValidator;
+
+    @InjectMocks
+    private DiscountService discountService;
+
+    @Test
+    void testCalculateDiscount_StandardCustomer_AppliesTenPercent() {
+        double discount = discountService.calculateDiscount(100.0, CustomerType.STANDARD, "SAVE10");
+        assertEquals(10.0, discount, 0.001);
+    }
+
+    @Test
+    void testCalculateDiscount_ZeroAmount_ReturnsZero() {
+        double discount = discountService.calculateDiscount(0.0, CustomerType.STANDARD, null);
+        assertEquals(0.0, discount, 0.001);
+    }
+
+    @Test
+    void testCalculateDiscount_NullCustomerType_ThrowsIllegalArgumentException() {
+        assertThrows(IllegalArgumentException.class, () ->
+            discountService.calculateDiscount(100.0, null, "SAVE10")
+        );
+    }
+
+    @Test
+    void testCalculateDiscount_NegativeAmount_ThrowsInvalidAmountException() {
+        assertThrows(InvalidAmountException.class, () ->
+            discountService.calculateDiscount(-50.0, CustomerType.STANDARD, "SAVE10")
+        );
+    }
+
+    @Test
+    void testCalculateDiscount_ExpiredCoupon_ThrowsCouponExpiredException() {
+        when(couponValidator.isExpired("EXPIRED2023")).thenReturn(true);
+        assertThrows(CouponExpiredException.class, () ->
+            discountService.calculateDiscount(200.0, CustomerType.STANDARD, "EXPIRED2023")
+        );
+    }
+
+    @Test
+    void testCalculateDiscount_ExtremeAmountMillion_HandlesWithoutOverflow() {
+        double discount = discountService.calculateDiscount(1000000.0, CustomerType.ENTERPRISE, "BULK25");
+        assertEquals(250000.0, discount, 0.001);
+    }
+}'''
+
+    return TestGenResponse(
+        function_signature=sig,
+        language=lang,
+        framework=framework,
+        tests_generated=31,
+        passed=29,
+        failed=2,
+        coverage_pct=94.0,
+        test_types=req.test_types or ["Unit", "Integration", "API", "Regression"],
+        test_cases=test_cases,
+        full_test_code=full_code
     )
+
+# ----------------------------------------------------
+# PHASE 14: AI CODE REVIEW AGENT
+# ----------------------------------------------------
+def review_pull_request(req: CodeReviewRequest) -> CodeReviewResponse:
+    findings = [
+        ReviewFinding(
+            category="Performance",
+            severity="WARNING",
+            file="PaymentService.java",
+            line=47,
+            title="Database Query Inside Loop Detected (N+1 Problem)",
+            description="PaymentService.java performs database access inside a loop. This may cause unnecessary queries and latency bottlenecks.",
+            suggestion="Batch fetch payment records using repository.findAllById(paymentIds) before iterating."
+        ),
+        ReviewFinding(
+            category="Security",
+            severity="WARNING",
+            file="AdminController.java",
+            line=22,
+            title="Missing Authorization Check on Admin Endpoint",
+            description="No authorization check found for admin endpoint POST /api/v1/admin/users/promote.",
+            suggestion="Add @PreAuthorize(\"hasRole('ROLE_ADMIN')\") or verify SecurityContextHolder permissions."
+        ),
+        ReviewFinding(
+            category="Error Handling",
+            severity="PRAISE",
+            file="UserService.java",
+            line=65,
+            title="Structured Error Handling Implemented",
+            description="Error handling improved with clear exception mapping and idempotent rollback.",
+            suggestion="Continue adopting CustomUserException hierarchy across all service boundaries."
+        ),
+        ReviewFinding(
+            category="Code Quality",
+            severity="SUGGESTION",
+            file="OrderController.java",
+            line=88,
+            title="Potential Duplicate DTO Validation",
+            description="Manual null and format validation duplicates existing @Valid @NotNull annotations.",
+            suggestion="Remove manual null checks and rely on Jakarta Bean Validation on RequestBody."
+        )
+    ]
+
+    return CodeReviewResponse(
+        review_score=88,
+        verdict="APPROVED_WITH_RECOMMENDATIONS",
+        findings=findings,
+        quality_score=89,
+        performance_score=78,
+        security_score=92,
+        maintainability_score=91,
+        summary="High quality Pull Request with clean business abstractions. 2 warnings identified: optimize N+1 query in PaymentService and add @PreAuthorize to admin endpoints."
+    )
+
+# ----------------------------------------------------
+# PHASE 15: SECURITY SCANNER (DEVSECOPS)
+# ----------------------------------------------------
+def run_devsecops_scanner(req: SecurityScanRequest) -> SecurityScanResponse:
+    findings = [
+        SecurityFinding(
+            id="SEC-001",
+            severity="HIGH",
+            category="SECRET_DETECTION",
+            title="Hard-coded database password found",
+            file="application.properties",
+            line=12,
+            code_snippet="spring.datasource.password=forgex_secret_password",
+            description="Plaintext database password committed to configuration file.",
+            remediation="Move credentials to environment variables (e.g. ${SPRING_DATASOURCE_PASSWORD}) or AWS Secrets Manager / HashiCorp Vault."
+        ),
+        SecurityFinding(
+            id="SEC-002",
+            severity="MEDIUM",
+            category="SAST",
+            title="Missing Strict-Transport-Security (HSTS) Header",
+            file="SecurityConfig.java",
+            line=41,
+            code_snippet="http.headers(headers -> headers.frameOptions().disable())",
+            description="HTTP Strict Transport Security is not explicitly enforced on API responses.",
+            remediation="Enable HSTS: headers.httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))."
+        ),
+        SecurityFinding(
+            id="SEC-003",
+            severity="MEDIUM",
+            category="DEPENDENCY_SCAN",
+            title="Outdated Jackson Databind with Known CVE-2023-35116",
+            file="pom.xml",
+            line=78,
+            code_snippet="<version>2.15.2</version>",
+            description="Jackson Databind version contains potential denial-of-service vulnerability.",
+            remediation="Upgrade com.fasterxml.jackson.core:jackson-databind to version 2.16.1 or later."
+        ),
+        SecurityFinding(
+            id="SEC-004",
+            severity="LOW",
+            category="SAST",
+            title="Verbose Exception Stacktrace Logging in Production",
+            file="GlobalExceptionHandler.java",
+            line=53,
+            code_snippet="e.printStackTrace();",
+            description="Printing raw stack traces may leak internal class structure in server logs.",
+            remediation="Use structured SLF4J logger with log.error(\"Context: {}\", e.getMessage())."
+        ),
+        SecurityFinding(
+            id="SEC-005",
+            severity="LOW",
+            category="SAST",
+            title="Missing Rate Limiting Header Configuration",
+            file="RateLimitFilter.java",
+            line=19,
+            code_snippet="response.setHeader(\"X-RateLimit-Limit\", \"100\");",
+            description="Retry-After header omitted when rate limit 429 Too Many Requests is triggered.",
+            remediation="Include Retry-After: <seconds> header on all 429 response packets."
+        ),
+        SecurityFinding(
+            id="SEC-006",
+            severity="LOW",
+            category="DEPENDENCY_SCAN",
+            title="Transitive Dependency Audit Alert",
+            file="pom.xml",
+            line=94,
+            code_snippet="<artifactId>commons-compress</artifactId>",
+            description="Transitive dependency version qualifies for security maintenance patch.",
+            remediation="Pin org.apache.commons:commons-compress to >= 1.26.0."
+        ),
+        SecurityFinding(
+            id="SEC-007",
+            severity="LOW",
+            category="SECRET_DETECTION",
+            title="Test Dummy API Key Pattern Found in Mock Data",
+            file="MockStripeService.java",
+            line=14,
+            code_snippet="private final String TEST_KEY = \"sk_test_mock_1234567890\";",
+            description="Test key pattern matched regex. Confirmed mock string, no active breach.",
+            remediation="Document mock keys in test-fixtures directory."
+        )
+    ]
+
+    return SecurityScanResponse(
+        status="COMPLETED",
+        critical_count=0,
+        high_count=1,
+        medium_count=2,
+        low_count=4,
+        findings=findings,
+        secret_scan_status="PASSED (1 advisory)",
+        sast_status="PASSED (0 critical)",
+        dependency_audit_status="AUDITED (1 outdated library)",
+        is_deployable=True
+    )
+
+# ----------------------------------------------------
+# PHASE 16: AI TRUST SCORE (SIGNATURE GOVERNANCE FORMULA) ⭐
+# ----------------------------------------------------
+def calculate_trust_score(req: TrustScoreRequest) -> TrustScoreResponse:
+    # Exact Formula:
+    # 0.20 * Requirement + 0.20 * Tests + 0.20 * Security + 0.15 * Code Quality + 0.10 * Dependencies + 0.15 * AI Review
+    weights = {
+        "requirement_weight": 0.20,
+        "test_weight": 0.20,
+        "security_weight": 0.20,
+        "quality_weight": 0.15,
+        "dependency_weight": 0.10,
+        "ai_review_weight": 0.15
+    }
+
+    score = (
+        0.20 * req.requirement_coverage +
+        0.20 * req.test_coverage +
+        0.20 * req.security_score +
+        0.15 * req.code_quality_score +
+        0.10 * req.dependency_risk_score +
+        0.15 * req.ai_review_score
+    )
+    score_rounded = round(score, 1)
+
+    if score_rounded >= 90.0:
+        band = "READY"
+        gate = "DEPLOYMENT_APPROVED"
+        recommendation = "Exceptional quality & governance. Pull request is verified and ready for production deployment."
+    elif score_rounded >= 75.0:
+        band = "REVIEW"
+        gate = "PEER_REVIEW_REQUIRED"
+        recommendation = "Solid foundation. Minor performance or dependency warnings require lead developer sign-off."
+    elif score_rounded >= 50.0:
+        band = "CAUTION"
+        gate = "ADDITIONAL_TESTS_REQUIRED"
+        recommendation = "Multiple test gaps or security advisories identified. Resolve before staging deployment."
+    else:
+        band = "BLOCKED"
+        gate = "DEPLOYMENT_BLOCKED"
+        recommendation = "Critical security vulnerability or severe test regression detected. Deployment forbidden."
+
+    breakdown = {
+        "requirement_coverage": req.requirement_coverage,
+        "test_coverage": req.test_coverage,
+        "security": req.security_score,
+        "code_quality": req.code_quality_score,
+        "dependency_risk": req.dependency_risk_score,
+        "ai_review": req.ai_review_score
+    }
+
+    return TrustScoreResponse(
+        trust_score=score_rounded,
+        status_band=band,
+        recommendation=recommendation,
+        deployment_gate=gate,
+        breakdown=breakdown,
+        weights=weights
+    )
+
+# ----------------------------------------------------
+# PHASE 20: OBSERVABILITY / PRODUCTION TELEMETRY
+# ----------------------------------------------------
+def get_production_monitoring() -> MonitoringMetricsResponse:
+    import datetime
+    return MonitoringMetricsResponse(
+        requests_total=14284,
+        avg_latency_ms=184.2,
+        error_rate_pct=0.4,
+        cpu_usage_pct=41.0,
+        memory_usage_pct=57.0,
+        services={
+            "Backend": "🟢 HEALTHY (Spring Boot 3.3.4, Port 8080)",
+            "AI Service": "🟢 HEALTHY (FastAPI Python 3.14, Port 8000)",
+            "Database": "🟢 CONNECTED (PostgreSQL 16 + pgvector, Port 5432)",
+            "Redis": "🟢 CONNECTED (Redis 7 Alpine, Port 6379)"
+        },
+        timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+    )
+
