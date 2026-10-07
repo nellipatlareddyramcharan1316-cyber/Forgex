@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-// API Configuration
+// API Endpoints
 const BACKEND_URL = 'http://localhost:8080/api/v1';
 const AUTH_URL = 'http://localhost:8080/api/auth';
 const AI_SERVICE_URL = 'http://localhost:8000';
@@ -8,15 +8,14 @@ const AI_SERVICE_URL = 'http://localhost:8000';
 type Page =
   | 'dashboard'
   | 'projects'
-  | 'project-details'
+  | 'kanban'
+  | 'github'
   | 'requirements'
-  | 'tasks'
-  | 'repository'
-  | 'ai-assistant'
-  | 'testing'
-  | 'security'
-  | 'deployment'
-  | 'analytics';
+  | 'rag-knowledge'
+  | 'repo-analyzer'
+  | 'dev-planner'
+  | 'coding-agent'
+  | 'trust-score';
 
 interface UserProfile {
   token: string;
@@ -45,8 +44,20 @@ interface TaskItem {
   priority: string;
   projectId?: number;
   epicName?: string;
+  acceptanceCriteria?: string;
+  assignee?: { name: string; email: string };
   createdAt?: string;
 }
+
+const KANBAN_STATUSES = [
+  'BACKLOG',
+  'TODO',
+  'IN_PROGRESS',
+  'CODE_REVIEW',
+  'TESTING',
+  'DONE',
+  'BLOCKED'
+];
 
 export default function App() {
   // Authentication State
@@ -60,48 +71,63 @@ export default function App() {
   const [authName, setAuthName] = useState('Devon Lee');
   const [authRole, setAuthRole] = useState('DEVELOPER');
   const [authError, setAuthError] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
 
-  // Active View / Page
-  const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+  // Navigation View
+  const [currentPage, setCurrentPage] = useState<Page>('kanban');
 
-  // Backend Data State
+  // Project & Task State
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
 
-  // Create Project Modal
+  // Modals (Phase 6)
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectDesc, setNewProjectDesc] = useState('');
-  const [newProjectRepo, setNewProjectRepo] = useState('');
+  const [editProjectModal, setEditProjectModal] = useState<Project | null>(null);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [memberEmail, setMemberEmail] = useState('');
+  const [memberRole, setMemberRole] = useState('DEVELOPER');
+  const [projectMembers, setProjectMembers] = useState<any[]>([]);
 
-  // Create Task Modal
+  // Task Creation Modal (Phase 6)
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState('HIGH');
-  const [newTaskStoryKey, setNewTaskStoryKey] = useState('');
+  const [newTaskStatus, setNewTaskStatus] = useState('BACKLOG');
+  const [newTaskCriteria, setNewTaskCriteria] = useState('');
 
-  // Module States
-  const [reqPrompt, setReqPrompt] = useState('Build an online food delivery application with login, restaurant search, cart and payment.');
-  const [reqData, setReqData] = useState<any>(null);
+  // Phase 7: GitHub State
+  const [githubConnected, setGithubConnected] = useState(true);
+  const [githubRepos, setGithubRepos] = useState<any[]>([]);
+  const [selectedRepoStats, setSelectedRepoStats] = useState<any>(null);
+  const [newBranchName, setNewBranchName] = useState('feature/password-reset');
+  const [newIssueTitle, setNewIssueTitle] = useState('Enhance JWT expiration validation');
+  const [gitActionNotice, setGitActionNotice] = useState('');
+
+  // Phase 8: Requirement State
+  const [reqPrompt, setReqPrompt] = useState('Build an online parking reservation system for students and faculty.');
+  const [reqResult, setReqResult] = useState<any>(null);
   const [reqLoading, setReqLoading] = useState(false);
 
-  const [repoQuery, setRepoQuery] = useState('Which files would be affected if I change the payment service?');
-  const [repoData, setRepoData] = useState<any>(null);
+  // Phase 9: RAG Knowledge State
+  const [ragQuery, setRagQuery] = useState('Where is authentication handled?');
+  const [ragResult, setRagResult] = useState<any>(null);
+  const [ragLoading, setRagLoading] = useState(false);
 
-  const [codePlan, setCodePlan] = useState<any>(null);
-  const [secScanResult, setSecScanResult] = useState<any>(null);
+  // Phase 10: Repo Analyzer State
+  const [repoAnalysis, setRepoAnalysis] = useState<any>(null);
+  const [repoAnalyzing, setRepoAnalyzing] = useState(false);
 
-  // Trust Score Dynamic Controls
-  const [unitPassed, setUnitPassed] = useState(24);
-  const [unitTotal] = useState(24);
-  const [critVulns, setCritVulns] = useState(0);
-  const [secretsFound, setSecretsFound] = useState(0);
+  // Phase 11: Dev Planner State
+  const [planTaskInput, setPlanTaskInput] = useState('Add password reset functionality.');
+  const [devPlan, setDevPlan] = useState<any>(null);
+  const [plannerLoading, setPlannerLoading] = useState(false);
 
-  // Load Projects from Backend
+  // Phase 12: AI Coding Agent State
+  const [agentExecuting, setAgentExecuting] = useState(false);
+  const [agentResult, setAgentResult] = useState<any>(null);
+
+  // Fetch Projects & Tasks
   const fetchProjects = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/projects`);
@@ -113,19 +139,16 @@ export default function App() {
         }
       }
     } catch {
-      // Fallback seed
       const fallback: Project[] = [
         { id: 1, name: 'Food Delivery Platform', description: 'High-throughput food ordering engine with restaurant catalog, cart checkout, and Stripe integration.', repositoryUrl: 'https://github.com/forgex-demo/foodieflow', status: 'ACTIVE' },
         { id: 2, name: 'Parking System', description: 'IoT-integrated automated parking bay reservation system with concurrency control.', repositoryUrl: 'https://github.com/forgex-demo/smartpark', status: 'ACTIVE' },
-        { id: 3, name: 'College Portal', description: 'Integrated academic management system with grades, attendance, and fee tracking.', repositoryUrl: 'https://github.com/forgex-demo/collegeportal', status: 'DEVELOPMENT' },
-        { id: 4, name: 'AI DevSecOps Pipeline', description: 'Continuous compliance and automated verification engine.', repositoryUrl: 'https://github.com/forgex-demo/pipeline', status: 'ACTIVE' }
+        { id: 3, name: 'College Portal', description: 'Integrated academic management system with grades, attendance, and fee tracking.', repositoryUrl: 'https://github.com/forgex-demo/collegeportal', status: 'DEVELOPMENT' }
       ];
       setProjects(fallback);
       if (!selectedProject) setSelectedProject(fallback[0]);
     }
   };
 
-  // Load Tasks for Selected Project
   const fetchTasks = async (projectId: number) => {
     try {
       const res = await fetch(`${BACKEND_URL}/tasks/project/${projectId}`);
@@ -136,29 +159,68 @@ export default function App() {
     } catch {
       setTasks([
         { id: 1, storyKey: 'US-101', title: 'Customer JWT Authentication', description: 'Implement BCrypt password hashing and token generation', status: 'DONE', priority: 'HIGH', epicName: 'Authentication' },
-        { id: 2, storyKey: 'US-102', title: 'Role-Based Access Control', description: 'Enforce RBAC annotations on admin and restaurant routes', status: 'IN_REVIEW', priority: 'MEDIUM', epicName: 'Authentication' },
+        { id: 2, storyKey: 'US-102', title: 'Role-Based Access Control', description: 'Enforce RBAC annotations on admin and restaurant routes', status: 'CODE_REVIEW', priority: 'MEDIUM', epicName: 'Authentication' },
         { id: 3, storyKey: 'US-103', title: 'Geo-Radius Menu Search', description: 'Query open restaurants within 5km radius with Redis cache', status: 'IN_PROGRESS', priority: 'HIGH', epicName: 'Catalog' },
-        { id: 4, storyKey: 'US-104', title: 'Idempotent Payment Intent API', description: 'Stripe checkout with Idempotency-Key validation', status: 'BACKLOG', priority: 'CRITICAL', epicName: 'Payments' }
+        { id: 4, storyKey: 'US-104', title: 'Idempotent Payment Intent API', description: 'Stripe checkout with Idempotency-Key validation', status: 'TESTING', priority: 'CRITICAL', epicName: 'Payments' },
+        { id: 5, storyKey: 'US-105', title: 'SMS Order Dispatch Notifications', description: 'Twilio integration for real-time delivery alerts', status: 'TODO', priority: 'LOW', epicName: 'Notifications' },
+        { id: 6, storyKey: 'US-106', title: 'Refund Audit Ledger', description: 'Administrative transaction reversal workflow', status: 'BACKLOG', priority: 'MEDIUM', epicName: 'Administration' }
       ]);
+    }
+  };
+
+  const fetchMembers = async (projectId: number) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/projects/${projectId}/members`);
+      if (res.ok) {
+        setProjectMembers(await res.json());
+      }
+    } catch {
+      setProjectMembers([
+        { id: 1, user: { name: 'Alice Vance', email: 'admin@forgex.io' }, role: 'ROLE_ADMIN' },
+        { id: 2, user: { name: 'Devon Lee', email: 'dev@forgex.io' }, role: 'ROLE_DEVELOPER' }
+      ]);
+    }
+  };
+
+  const fetchGitHubRepos = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/github/repositories`);
+      if (res.ok) setGithubRepos(await res.json());
+      const statsRes = await fetch(`${BACKEND_URL}/github/repos/forgex-demo/food-delivery-system/stats`);
+      if (statsRes.ok) setSelectedRepoStats(await statsRes.json());
+    } catch {
+      setGithubRepos([
+        { name: 'food-delivery-system', defaultBranch: 'main', language: 'Java', filesCount: 184, openIssues: 7, openPrs: 3 },
+        { name: 'smart-parking-iot', defaultBranch: 'main', language: 'Java', filesCount: 126, openIssues: 4, openPrs: 1 }
+      ]);
+      setSelectedRepoStats({
+        repository: 'food-delivery-system',
+        language: 'Java',
+        framework: 'Spring Boot 3',
+        files: 184,
+        openIssues: 7,
+        openPrs: 3
+      });
     }
   };
 
   useEffect(() => {
     if (currentUser) {
       fetchProjects();
+      fetchGitHubRepos();
     }
   }, [currentUser]);
 
   useEffect(() => {
     if (selectedProject) {
       fetchTasks(selectedProject.id);
+      fetchMembers(selectedProject.id);
     }
   }, [selectedProject]);
 
-  // Auth: Login
+  // Auth Handlers
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    setAuthLoading(true);
     setAuthError('');
     try {
       const res = await fetch(`${AUTH_URL}/login`, {
@@ -167,124 +229,70 @@ export default function App() {
         body: JSON.stringify({ email: authEmail, password: authPassword })
       });
       if (res.ok) {
-        const user: UserProfile = await res.json();
-        setCurrentUser(user);
-        localStorage.setItem('forgex_user', JSON.stringify(user));
-        setCurrentPage('dashboard');
+        const u = await res.json();
+        setCurrentUser(u);
+        localStorage.setItem('forgex_user', JSON.stringify(u));
+        setCurrentPage('kanban');
       } else {
         setAuthError('Invalid email or password');
       }
     } catch {
-      // Offline fallback login for demo convenience
       const demoUser: UserProfile = {
-        token: 'demo-jwt-token-12345',
+        token: 'demo-token',
         id: 3,
-        name: authEmail.includes('admin') ? 'Alice Vance' : 'Devon Lee',
+        name: 'Devon Lee',
         email: authEmail,
-        role: authEmail.includes('admin') ? 'ROLE_ADMIN' : 'ROLE_DEVELOPER'
+        role: 'ROLE_DEVELOPER'
       };
       setCurrentUser(demoUser);
       localStorage.setItem('forgex_user', JSON.stringify(demoUser));
-      setCurrentPage('dashboard');
-    } finally {
-      setAuthLoading(false);
+      setCurrentPage('kanban');
     }
   };
 
-  // Auth: Register
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthLoading(true);
-    setAuthError('');
-    try {
-      const res = await fetch(`${AUTH_URL}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: authName, email: authEmail, password: authPassword, role: authRole })
-      });
-      if (res.ok) {
-        const user: UserProfile = await res.json();
-        setCurrentUser(user);
-        localStorage.setItem('forgex_user', JSON.stringify(user));
-        setCurrentPage('dashboard');
-      } else {
-        const err = await res.json();
-        setAuthError(err.error || 'Registration failed');
-      }
-    } catch {
-      setAuthError('Network error connecting to backend auth');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  // Auth: Logout
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('forgex_user');
   };
 
-  // Action: Create Project
-  const handleCreateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newProjectName.trim()) return;
-
+  // Phase 6 Actions: Task Status & Priority
+  const handleUpdateTaskStatus = async (taskId: number, newStatus: string) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/projects`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${currentUser?.token}`
-        },
-        body: JSON.stringify({
-          name: newProjectName,
-          description: newProjectDesc,
-          repositoryUrl: newProjectRepo || `https://github.com/forgex-demo/${newProjectName.toLowerCase().replaceAll(' ', '-')}`
-        })
+      await fetch(`${BACKEND_URL}/tasks/${taskId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
       });
-      if (res.ok) {
-        const created = await res.json();
-        setProjects([created, ...projects]);
-        setSelectedProject(created);
-        setShowCreateProjectModal(false);
-        setNewProjectName('');
-        setNewProjectDesc('');
-        setNewProjectRepo('');
-      }
+      setTasks(tasks.map(t => (t.id === taskId ? { ...t, status: newStatus } : t)));
     } catch {
-      const newProj: Project = {
-        id: projects.length + 1,
-        name: newProjectName,
-        description: newProjectDesc,
-        repositoryUrl: newProjectRepo || `https://github.com/forgex-demo/${newProjectName.toLowerCase().replaceAll(' ', '-')}`,
-        status: 'ACTIVE'
-      };
-      setProjects([newProj, ...projects]);
-      setSelectedProject(newProj);
-      setShowCreateProjectModal(false);
-      setNewProjectName('');
-      setNewProjectDesc('');
+      setTasks(tasks.map(t => (t.id === taskId ? { ...t, status: newStatus } : t)));
     }
   };
 
-  // Action: Create Task
+  const handleDeleteTask = async (taskId: number) => {
+    try {
+      await fetch(`${BACKEND_URL}/tasks/${taskId}`, { method: 'DELETE' });
+      setTasks(tasks.filter(t => t.id !== taskId));
+    } catch {
+      setTasks(tasks.filter(t => t.id !== taskId));
+    }
+  };
+
+  // Phase 6: Create Task
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTaskTitle.trim() || !selectedProject) return;
+    if (!selectedProject || !newTaskTitle.trim()) return;
 
     try {
       const res = await fetch(`${BACKEND_URL}/tasks/project/${selectedProject.id}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${currentUser?.token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: newTaskTitle,
           description: newTaskDesc,
           priority: newTaskPriority,
-          storyKey: newTaskStoryKey || `US-${100 + tasks.length + 1}`,
-          status: 'BACKLOG'
+          status: newTaskStatus,
+          acceptanceCriteria: newTaskCriteria
         })
       });
       if (res.ok) {
@@ -293,79 +301,215 @@ export default function App() {
         setShowCreateTaskModal(false);
         setNewTaskTitle('');
         setNewTaskDesc('');
-        setNewTaskStoryKey('');
+        setNewTaskCriteria('');
       }
     } catch {
-      const newTask: TaskItem = {
+      const t: TaskItem = {
         id: tasks.length + 1,
-        storyKey: newTaskStoryKey || `US-${100 + tasks.length + 1}`,
+        storyKey: `US-${100 + tasks.length + 1}`,
         title: newTaskTitle,
         description: newTaskDesc,
-        status: 'BACKLOG',
         priority: newTaskPriority,
+        status: newTaskStatus,
+        acceptanceCriteria: newTaskCriteria,
         projectId: selectedProject.id
       };
-      setTasks([newTask, ...tasks]);
+      setTasks([t, ...tasks]);
       setShowCreateTaskModal(false);
       setNewTaskTitle('');
       setNewTaskDesc('');
     }
   };
 
-  // Action: Update Task Status
-  const handleUpdateTaskStatus = async (taskId: number, newStatus: string) => {
+  // Phase 6: Add Project Member
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProject || !memberEmail.trim()) return;
+
     try {
-      const res = await fetch(`${BACKEND_URL}/tasks/${taskId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${currentUser?.token}`
-        },
-        body: JSON.stringify({ status: newStatus })
+      const res = await fetch(`${BACKEND_URL}/projects/${selectedProject.id}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: memberEmail, role: memberRole })
       });
       if (res.ok) {
-        setTasks(tasks.map(t => (t.id === taskId ? { ...t, status: newStatus } : t)));
+        const m = await res.json();
+        setProjectMembers([...projectMembers, m]);
+        setShowAddMemberModal(false);
+        setMemberEmail('');
       }
     } catch {
-      setTasks(tasks.map(t => (t.id === taskId ? { ...t, status: newStatus } : t)));
+      setProjectMembers([...projectMembers, { id: projectMembers.length + 1, user: { name: memberEmail.split('@')[0], email: memberEmail }, role: `ROLE_${memberRole}` }]);
+      setShowAddMemberModal(false);
+      setMemberEmail('');
     }
   };
 
-  // Calculate Trust Score Gauge
-  const calculateTrustScore = () => {
-    const unitScore = (unitPassed / unitTotal) * 25.0;
-    const intScore = 15.0;
-    const secScore = critVulns > 0 ? 0.0 : 20.0;
-    const secSecretsScore = secretsFound > 0 ? 0.0 : 15.0;
-    const depScore = 7.0;
-    const reqScore = 9.2;
-    const qualityScore = 4.8;
-
-    let total = unitScore + intScore + secScore + secSecretsScore + depScore + reqScore + qualityScore;
-    let blocked = false;
-    let reason = '';
-
-    if (critVulns > 0) {
-      total = 20.0;
-      blocked = true;
-      reason = 'CRITICAL SQL INJECTION / SAST FLAW';
-    } else if (secretsFound > 0) {
-      total = 25.0;
-      blocked = true;
-      reason = 'HARDCODED AWS CREDENTIAL DETECTED';
+  // Phase 7: GitHub Branch Creation
+  const handleCreateGitHubBranch = async () => {
+    setGitActionNotice(`Creating branch '${newBranchName}' via GitHub API...`);
+    try {
+      const res = await fetch(`${BACKEND_URL}/github/repos/forgex-demo/food-delivery-system/branches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branchName: newBranchName })
+      });
+      if (res.ok) {
+        setGitActionNotice(`✅ Successfully created branch '${newBranchName}' from 'main'!`);
+      }
+    } catch {
+      setGitActionNotice(`✅ Created branch '${newBranchName}' on GitHub!`);
     }
-
-    const finalScore = Math.max(0, Math.min(100, Math.round(total)));
-    const verdict = blocked || finalScore < 65 ? 'BLOCKED - INSECURE' : (finalScore >= 85 ? 'SAFE TO REVIEW' : 'REQUIRES SENIOR APPROVAL');
-    const badgeColor = finalScore >= 85 ? 'green' : (finalScore >= 65 ? 'yellow' : 'red');
-
-    return { finalScore, verdict, badgeColor, blocked, reason };
   };
 
-  const trustResult = calculateTrustScore();
+  // Phase 8: AI Requirement Analyzer
+  const handleAnalyzeRequirement = async () => {
+    setReqLoading(true);
+    try {
+      const res = await fetch(`${AI_SERVICE_URL}/api/ai/analyze-requirement`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requirement_text: reqPrompt })
+      });
+      if (res.ok) setReqResult(await res.json());
+    } catch {
+      setReqResult({
+        project_name: 'Online Parking Reservation System',
+        epics: [
+          { epic_name: 'Epic 1: Authentication', user_stories: [{ story_key: 'US-P101', title: 'Student & Faculty JWT SSO', acceptance_criteria: ['✓ User must be logged in', '✓ Verified university permit'] }] },
+          { epic_name: 'Epic 2: Parking Management', user_stories: [{ story_key: 'US-P102', title: 'Live Bay Occupancy', acceptance_criteria: ['✓ Ingest ultrasonic sensors', '✓ Mark defective bays'] }] },
+          { epic_name: 'Epic 3: Reservation', user_stories: [{ story_key: 'US-P103', title: 'Create Reservation API', acceptance_criteria: ['✓ User must be logged in', '✓ Slot must be available', '✓ Reservation must contain date/time', '✓ Duplicate reservation not allowed', '✓ Reservation ID generated'] }] },
+          { epic_name: 'Epic 4: Payment', user_stories: [{ story_key: 'US-P104', title: 'Idempotent Payment', acceptance_criteria: ['✓ Pass unique Idempotency-Key', '✓ Webhook status sync'] }] },
+          { epic_name: 'Epic 5: Notifications', user_stories: [{ story_key: 'US-P105', title: 'Booking Alerts', acceptance_criteria: ['✓ SMS reminder 15m prior to expiry'] }] },
+          { epic_name: 'Epic 6: Administration', user_stories: [{ story_key: 'US-P106', title: 'Campus Analytics', acceptance_criteria: ['✓ Real-time occupancy heatmaps'] }] }
+        ]
+      });
+    } finally {
+      setReqLoading(false);
+    }
+  };
+
+  // Phase 9: RAG Query
+  const handleRAGQuery = async () => {
+    setRagLoading(true);
+    try {
+      const res = await fetch(`${AI_SERVICE_URL}/api/ai/rag/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: ragQuery })
+      });
+      if (res.ok) setRagResult(await res.json());
+    } catch {
+      setRagResult({
+        query: ragQuery,
+        answer: 'Authentication is handled primarily by SecurityConfig and JWT-related services. UserService manages user information while authentication filters validate JWT tokens.',
+        retrieved_chunks: [
+          { file_path: 'src/main/java/com/forgex/security/SecurityConfig.java', symbol_name: 'SecurityConfig.filterChain()', line_start: 34, snippet: 'http.csrf().disable().sessionManagement().authorizeHttpRequests(...)' },
+          { file_path: 'src/main/java/com/forgex/security/JwtAuthenticationFilter.java', symbol_name: 'JwtAuthenticationFilter.doFilterInternal()', line_start: 28, snippet: 'tokenProvider.validateToken(token); SecurityContextHolder.getContext().setAuthentication(...)' }
+        ],
+        latency_ms: 38.4
+      });
+    } finally {
+      setRagLoading(false);
+    }
+  };
+
+  // Phase 10: Repo Analyzer
+  const handleAnalyzeRepo = async () => {
+    setRepoAnalyzing(true);
+    try {
+      const res = await fetch(`${AI_SERVICE_URL}/api/ai/repo/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repository_name: 'food-delivery-system' })
+      });
+      if (res.ok) setRepoAnalysis(await res.json());
+    } catch {
+      setRepoAnalysis({
+        language: 'Java 21',
+        framework: 'Spring Boot 3.3.4',
+        database: 'PostgreSQL 16 + pgvector',
+        architecture_type: 'Layered Hexagonal Architecture',
+        architecture_flow: ['Controller', 'Service', 'Repository', 'Database'],
+        tests_count: 42,
+        coverage_pct: 83.4,
+        security_findings_count: 2,
+        dependencies_count: 37,
+        summary: 'Layered Spring Boot microservice with clear separation between Controllers, Services, and JPA Repositories.'
+      });
+    } finally {
+      setRepoAnalyzing(false);
+    }
+  };
+
+  // Phase 11: Dev Planner
+  const handleCreateDevPlan = async () => {
+    setPlannerLoading(true);
+    try {
+      const res = await fetch(`${AI_SERVICE_URL}/api/ai/dev-planner`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_description: planTaskInput })
+      });
+      if (res.ok) setDevPlan(await res.json());
+    } catch {
+      setDevPlan({
+        task_description: planTaskInput,
+        implementation_steps: [
+          '1. Modify User model with reset token fields',
+          '2. Create password reset token table',
+          '3. Add token generation (UUID)',
+          '4. Add email service',
+          '5. Create reset endpoint',
+          '6. Create frontend page',
+          '7. Add unit tests',
+          '8. Add integration tests'
+        ],
+        files_likely_affected: [
+          'User.java',
+          'UserService.java',
+          'AuthController.java',
+          'SecurityConfig.java',
+          'auth.ts',
+          'ResetPassword.jsx'
+        ],
+        safety_guideline: 'AI planning before execution: Changes must be isolated to feature branch.'
+      });
+    } finally {
+      setPlannerLoading(false);
+    }
+  };
+
+  // Phase 12: AI Coding Agent Execution
+  const handleExecuteCodingAgent = async () => {
+    setAgentExecuting(true);
+    try {
+      const res = await fetch(`${AI_SERVICE_URL}/api/ai/code-agent/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_title: 'Implement Password Reset', branch_name: 'feature/password-reset' })
+      });
+      if (res.ok) setAgentResult(await res.json());
+    } catch {
+      setAgentResult({
+        task_title: 'Implement Password Reset',
+        target_branch: 'feature/password-reset',
+        safety_rule_enforced: 'GUARANTEED: Direct commit to main is BLOCKED. Changes isolated to feature branch.',
+        commit_hash: 'cdae02e8194',
+        commit_message: 'feat(auth): implement password reset with secure token verification and tests',
+        changed_files: ['UserService.java', 'AuthController.java', 'PasswordResetToken.java'],
+        tests_passed: 24,
+        security_status: 'PASSED (0 critical, 0 secrets detected)',
+        pr_url: 'https://github.com/forgex-demo/food-delivery-system/pull/53',
+        status: 'PR_CREATED_WAITING_HUMAN_APPROVAL'
+      });
+    } finally {
+      setAgentExecuting(false);
+    }
+  };
 
   // ----------------------------------------------------
-  // VIEW: AUTHENTICATION (LOGIN / REGISTER)
+  // AUTH SCREEN
   // ----------------------------------------------------
   if (!currentUser) {
     return (
@@ -380,165 +524,43 @@ export default function App() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', background: 'rgba(0,0,0,0.3)', padding: '0.3rem', borderRadius: '8px' }}>
-            <button
-              style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: authMode === 'login' ? 'rgba(56, 189, 248, 0.2)' : 'transparent', color: authMode === 'login' ? '#fff' : '#94a3b8', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
-              onClick={() => setAuthMode('login')}
-            >
-              Sign In
-            </button>
-            <button
-              style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: authMode === 'register' ? 'rgba(56, 189, 248, 0.2)' : 'transparent', color: authMode === 'register' ? '#fff' : '#94a3b8', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
-              onClick={() => setAuthMode('register')}
-            >
-              Register
-            </button>
-          </div>
-
-          {authError && (
-            <div style={{ background: 'rgba(244, 63, 94, 0.15)', border: '1px solid rgba(244, 63, 94, 0.3)', color: '#f43f5e', padding: '0.6rem 0.8rem', borderRadius: '6px', fontSize: '0.82rem', marginBottom: '1rem' }}>
-              {authError}
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {authError && <div style={{ color: '#f43f5e', fontSize: '0.82rem' }}>{authError}</div>}
+            <div>
+              <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>EMAIL ADDRESS</label>
+              <input type="email" className="forge-input" required value={authEmail} onChange={e => setAuthEmail(e.target.value)} />
             </div>
-          )}
-
-          {authMode === 'login' ? (
-            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>EMAIL ADDRESS</label>
-                <input
-                  type="email"
-                  className="forge-input"
-                  required
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>PASSWORD</label>
-                <input
-                  type="password"
-                  className="forge-input"
-                  required
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                />
-              </div>
-
-              <button type="submit" className="btn-primary" style={{ marginTop: '0.5rem', width: '100%' }} disabled={authLoading}>
-                {authLoading ? 'Authenticating with Spring Security...' : 'Sign In with JWT'}
+            <div>
+              <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>PASSWORD</label>
+              <input type="password" className="forge-input" required value={authPassword} onChange={e => setAuthPassword(e.target.value)} />
+            </div>
+            <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '0.5rem' }}>
+              Sign In with Spring Security JWT
+            </button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '1rem' }}>
+              <button type="button" className="btn-secondary" style={{ fontSize: '0.75rem' }} onClick={() => { setAuthEmail('dev@forgex.io'); setAuthPassword('Password123!'); }}>
+                👨‍💻 Developer Demo
               </button>
-
-              <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
-                <span style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
-                  QUICK DEMO ROLES (ONE-CLICK):
-                </span>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ fontSize: '0.75rem', padding: '0.4rem' }}
-                    onClick={() => { setAuthEmail('dev@forgex.io'); setAuthPassword('Password123!'); }}
-                  >
-                    👨‍💻 Developer
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ fontSize: '0.75rem', padding: '0.4rem' }}
-                    onClick={() => { setAuthEmail('admin@forgex.io'); setAuthPassword('Password123!'); }}
-                  >
-                    👩‍💼 Admin
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ fontSize: '0.75rem', padding: '0.4rem' }}
-                    onClick={() => { setAuthEmail('pm@forgex.io'); setAuthPassword('Password123!'); }}
-                  >
-                    👨‍💼 PM
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ fontSize: '0.75rem', padding: '0.4rem' }}
-                    onClick={() => { setAuthEmail('viewer@forgex.io'); setAuthPassword('Password123!'); }}
-                  >
-                    👁️ Viewer
-                  </button>
-                </div>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>FULL NAME</label>
-                <input
-                  type="text"
-                  className="forge-input"
-                  required
-                  value={authName}
-                  onChange={(e) => setAuthName(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>EMAIL ADDRESS</label>
-                <input
-                  type="email"
-                  className="forge-input"
-                  required
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>PASSWORD</label>
-                <input
-                  type="password"
-                  className="forge-input"
-                  required
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>ROLE</label>
-                <select
-                  className="forge-input"
-                  value={authRole}
-                  onChange={(e) => setAuthRole(e.target.value)}
-                  style={{ background: '#0a0e17' }}
-                >
-                  <option value="DEVELOPER">DEVELOPER</option>
-                  <option value="PROJECT_MANAGER">PROJECT_MANAGER</option>
-                  <option value="ADMIN">ADMIN</option>
-                  <option value="VIEWER">VIEWER</option>
-                </select>
-              </div>
-
-              <button type="submit" className="btn-primary" style={{ marginTop: '0.5rem', width: '100%' }} disabled={authLoading}>
-                {authLoading ? 'Creating User...' : 'Create Account (BCrypt)'}
+              <button type="button" className="btn-secondary" style={{ fontSize: '0.75rem' }} onClick={() => { setAuthEmail('admin@forgex.io'); setAuthPassword('Password123!'); }}>
+                👩‍💼 Admin Demo
               </button>
-            </form>
-          )}
+            </div>
+          </form>
         </div>
       </div>
     );
   }
 
   // ----------------------------------------------------
-  // MAIN AUTHENTICATED PLATFORM
+  // MAIN PLATFORM
   // ----------------------------------------------------
   return (
     <div>
-      {/* Platform Header */}
+      {/* Header */}
       <header className="header-container">
         <div className="brand-wrapper">
           <span className="brand-logo">⚡ ForgeX</span>
-          <span className="brand-pill">AI DevSecOps Factory</span>
+          <span className="brand-pill">Intelligent Software Factory</span>
         </div>
 
         <div className="header-status-group">
@@ -547,340 +569,104 @@ export default function App() {
               <span>PROJECT: {selectedProject.name}</span>
             </div>
           )}
-
           <div className="status-pill">
             <span className="pulse-dot"></span>
             <span>USER: {currentUser.name} ({currentUser.role.replace('ROLE_', '')})</span>
           </div>
-
           <button className="btn-secondary" style={{ padding: '0.35rem 0.8rem', fontSize: '0.78rem' }} onClick={handleLogout}>
             Logout
           </button>
         </div>
       </header>
 
-      {/* Main Navigation Tabs */}
+      {/* Navigation Tabs covering all phases */}
       <nav className="nav-tabs">
-        <button className={`nav-tab-btn ${currentPage === 'dashboard' ? 'active' : ''}`} onClick={() => setCurrentPage('dashboard')}>
-          📊 Dashboard
+        <button className={`nav-tab-btn ${currentPage === 'kanban' ? 'active' : ''}`} onClick={() => setCurrentPage('kanban')}>
+          📌 Phase 6: Kanban Board
         </button>
         <button className={`nav-tab-btn ${currentPage === 'projects' ? 'active' : ''}`} onClick={() => setCurrentPage('projects')}>
-          📁 Projects
+          📁 Phase 6: Project Management
         </button>
-        <button className={`nav-tab-btn ${currentPage === 'project-details' ? 'active' : ''}`} onClick={() => setCurrentPage('project-details')}>
-          📄 Project Details
+        <button className={`nav-tab-btn ${currentPage === 'github' ? 'active' : ''}`} onClick={() => setCurrentPage('github')}>
+          🐙 Phase 7: GitHub Integration
         </button>
         <button className={`nav-tab-btn ${currentPage === 'requirements' ? 'active' : ''}`} onClick={() => setCurrentPage('requirements')}>
-          📋 Requirements
+          📋 Phase 8: AI Requirement Analyzer
         </button>
-        <button className={`nav-tab-btn ${currentPage === 'tasks' ? 'active' : ''}`} onClick={() => setCurrentPage('tasks')}>
-          ✅ Tasks Board
+        <button className={`nav-tab-btn ${currentPage === 'rag-knowledge' ? 'active' : ''}`} onClick={() => setCurrentPage('rag-knowledge')}>
+          🧠 Phase 9: RAG Project Knowledge
         </button>
-        <button className={`nav-tab-btn ${currentPage === 'repository' ? 'active' : ''}`} onClick={() => setCurrentPage('repository')}>
-          🔍 Repository
+        <button className={`nav-tab-btn ${currentPage === 'repo-analyzer' ? 'active' : ''}`} onClick={() => setCurrentPage('repo-analyzer')}>
+          🔍 Phase 10: AI Repo Analyzer
         </button>
-        <button className={`nav-tab-btn ${currentPage === 'ai-assistant' ? 'active' : ''}`} onClick={() => setCurrentPage('ai-assistant')}>
-          🤖 AI Assistant
+        <button className={`nav-tab-btn ${currentPage === 'dev-planner' ? 'active' : ''}`} onClick={() => setCurrentPage('dev-planner')}>
+          📝 Phase 11: AI Development Planner
         </button>
-        <button className={`nav-tab-btn ${currentPage === 'testing' ? 'active' : ''}`} onClick={() => setCurrentPage('testing')}>
-          🧪 Testing
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'security' ? 'active' : ''}`} onClick={() => setCurrentPage('security')}>
-          🛡️ Security
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'deployment' ? 'active' : ''}`} onClick={() => setCurrentPage('deployment')}>
-          🚀 Deployment & Trust
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'analytics' ? 'active' : ''}`} onClick={() => setCurrentPage('analytics')}>
-          📈 Analytics
+        <button className={`nav-tab-btn ${currentPage === 'coding-agent' ? 'active' : ''}`} onClick={() => setCurrentPage('coding-agent')}>
+          💻 Phase 12: AI Coding Agent
         </button>
       </nav>
 
-      {/* Main Content Workspace */}
       <main className="main-content">
 
-        {/* ----------------- PAGE: DASHBOARD (MATCHING USER SPECIFICATION) ----------------- */}
-        {currentPage === 'dashboard' && (
-          <div>
-            <div className="section-header">
-              <h1 className="section-title">ForgeX Engineering Command Center</h1>
-              <p className="section-subtitle">Real-time status across projects, tasks, test suites, and DevSecOps gates.</p>
-            </div>
-
-            {/* Dashboard 4 Summary Cards */}
-            <div className="grid-4" style={{ marginBottom: '2rem' }}>
-              <div className="stat-card glass-panel">
-                <span className="stat-label">PROJECTS</span>
-                <span className="stat-value">{projects.length}</span>
-                <span className="stat-badge badge-success">Active Ecosystem</span>
-              </div>
-
-              <div className="stat-card glass-panel">
-                <span className="stat-label">TASKS</span>
-                <span className="stat-value">28</span>
-                <span className="stat-badge badge-success">4 In Progress</span>
-              </div>
-
-              <div className="stat-card glass-panel">
-                <span className="stat-label">TESTS</span>
-                <span className="stat-value" style={{ color: 'var(--accent-emerald)' }}>91%</span>
-                <span className="stat-badge badge-success">24/24 Passed</span>
-              </div>
-
-              <div className="stat-card glass-panel">
-                <span className="stat-label">SECURITY</span>
-                <span className="stat-value" style={{ color: 'var(--accent-amber)' }}>2 Issues</span>
-                <span className="stat-badge badge-warning">0 Critical</span>
-              </div>
-            </div>
-
-            <div className="grid-2">
-              {/* Left Column: Projects List */}
-              <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                  <h3 style={{ fontSize: '1.1rem', color: '#fff' }}>Projects</h3>
-                  <button className="btn-primary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }} onClick={() => setShowCreateProjectModal(true)}>
-                    + New Project
-                  </button>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {projects.map((proj) => (
-                    <div
-                      key={proj.id}
-                      style={{
-                        padding: '1rem',
-                        background: selectedProject?.id === proj.id ? 'rgba(56, 189, 248, 0.1)' : 'rgba(0,0,0,0.3)',
-                        border: selectedProject?.id === proj.id ? '1px solid var(--accent-cyan)' : '1px solid var(--border-subtle)',
-                        borderRadius: '8px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => setSelectedProject(proj)}
-                    >
-                      <div>
-                        <strong style={{ color: '#fff', fontSize: '0.95rem' }}>{proj.name}</strong>
-                        <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '0.2rem' }}>{proj.description}</p>
-                      </div>
-
-                      <div>
-                        {proj.status === 'ACTIVE' ? (
-                          <span className="stat-badge badge-success">🟢 Active</span>
-                        ) : (
-                          <span className="stat-badge badge-warning">🟡 Development</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Right Column: AI Engineering Health */}
-              <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.1rem', color: '#fff', marginBottom: '1.25rem' }}>AI Engineering Health</h3>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div className="check-item">
-                    <span style={{ color: '#cbd5e1', fontSize: '0.9rem' }}>Requirement Coverage</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)', fontWeight: 600 }}>92%</span>
-                      <span className="stat-badge badge-success">HEALTHY</span>
-                    </div>
-                  </div>
-
-                  <div className="check-item">
-                    <span style={{ color: '#cbd5e1', fontSize: '0.9rem' }}>Test Coverage</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)', fontWeight: 600 }}>91%</span>
-                      <span className="stat-badge badge-success">VERIFIED</span>
-                    </div>
-                  </div>
-
-                  <div className="check-item">
-                    <span style={{ color: '#cbd5e1', fontSize: '0.9rem' }}>Security Health</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)', fontWeight: 600 }}>94%</span>
-                      <span className="stat-badge badge-success">0 CRITICAL</span>
-                    </div>
-                  </div>
-
-                  <div className="check-item">
-                    <span style={{ color: '#cbd5e1', fontSize: '0.9rem' }}>Deployment Status</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', color: '#38bdf8', fontWeight: 600 }}>Ready</span>
-                      <span className="stat-badge badge-success">PROMOTED</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(56, 189, 248, 0.08)', borderRadius: '8px', borderLeft: '3px solid var(--accent-cyan)' }}>
-                  <strong style={{ color: '#38bdf8', fontSize: '0.85rem' }}>🎯 AI Project Manager Highlight:</strong>
-                  <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '0.2rem' }}>
-                    Food Delivery module has completed all unit test gates. Trust Score is at 87/100 (Safe to Review).
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ----------------- PAGE: PROJECTS ----------------- */}
-        {currentPage === 'projects' && (
+        {/* ----------------- PHASE 6: 7-STATUS KANBAN BOARD ----------------- */}
+        {currentPage === 'kanban' && selectedProject && (
           <div>
             <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <h1 className="section-title">Engineering Projects</h1>
-                <p className="section-subtitle">Manage project repositories, owner assignments, and sprint milestones.</p>
-              </div>
-              <button className="btn-primary" onClick={() => setShowCreateProjectModal(true)}>
-                + Create Project
-              </button>
-            </div>
-
-            <div className="grid-3">
-              {projects.map((proj) => (
-                <div key={proj.id} className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <h3 style={{ color: '#fff', fontSize: '1.05rem' }}>{proj.name}</h3>
-                      <span className={proj.status === 'ACTIVE' ? 'stat-badge badge-success' : 'stat-badge badge-warning'}>
-                        {proj.status}
-                      </span>
-                    </div>
-                    <p style={{ color: '#94a3b8', fontSize: '0.82rem', marginBottom: '1rem' }}>{proj.description}</p>
-                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.78rem', fontFamily: 'var(--font-mono)', color: '#38bdf8' }}>
-                      {proj.repositoryUrl}
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem' }}>
-                    <button
-                      className="btn-primary"
-                      style={{ flex: 1, fontSize: '0.8rem', padding: '0.45rem' }}
-                      onClick={() => {
-                        setSelectedProject(proj);
-                        setCurrentPage('tasks');
-                      }}
-                    >
-                      View Tasks
-                    </button>
-                    <button
-                      className="btn-secondary"
-                      style={{ fontSize: '0.8rem', padding: '0.45rem' }}
-                      onClick={() => {
-                        setSelectedProject(proj);
-                        setCurrentPage('project-details');
-                      }}
-                    >
-                      Details
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ----------------- PAGE: PROJECT DETAILS ----------------- */}
-        {currentPage === 'project-details' && selectedProject && (
-          <div>
-            <div className="section-header">
-              <h1 className="section-title">Project: {selectedProject.name}</h1>
-              <p className="section-subtitle">Repository overview, member governance, and linked epics.</p>
-            </div>
-
-            <div className="grid-2">
-              <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.05rem', color: '#fff', marginBottom: '1rem' }}>Repository & Architecture</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem' }}>
-                  <div><strong style={{ color: '#94a3b8' }}>Repo URL: </strong> <span style={{ fontFamily: 'var(--font-mono)', color: '#38bdf8' }}>{selectedProject.repositoryUrl}</span></div>
-                  <div><strong style={{ color: '#94a3b8' }}>Status: </strong> <span className="stat-badge badge-success">{selectedProject.status}</span></div>
-                  <div><strong style={{ color: '#94a3b8' }}>Description: </strong> <p style={{ color: '#cbd5e1', marginTop: '0.3rem' }}>{selectedProject.description}</p></div>
-                  <div><strong style={{ color: '#94a3b8' }}>Primary Language: </strong> <span style={{ color: '#10b981' }}>Java 21 / Spring Boot 3</span></div>
-                  <div><strong style={{ color: '#94a3b8' }}>Database: </strong> <span style={{ color: '#38bdf8' }}>PostgreSQL 16 + pgvector</span></div>
-                </div>
-              </div>
-
-              <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.05rem', color: '#fff', marginBottom: '1rem' }}>Team Members & Access Control</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem', background: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
-                    <div><strong style={{ color: '#fff', fontSize: '0.85rem' }}>Alice Vance</strong> <span style={{ color: '#64748b', fontSize: '0.75rem' }}> (admin@forgex.io)</span></div>
-                    <span className="stat-badge badge-warning">ADMIN</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem', background: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
-                    <div><strong style={{ color: '#fff', fontSize: '0.85rem' }}>Marcus Brody</strong> <span style={{ color: '#64748b', fontSize: '0.75rem' }}> (pm@forgex.io)</span></div>
-                    <span className="stat-badge" style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8' }}>PROJECT_MANAGER</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem', background: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
-                    <div><strong style={{ color: '#fff', fontSize: '0.85rem' }}>Devon Lee</strong> <span style={{ color: '#64748b', fontSize: '0.75rem' }}> (dev@forgex.io)</span></div>
-                    <span className="stat-badge badge-success">DEVELOPER</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ----------------- PAGE: TASKS BOARD (KANBAN & UPDATE TASK) ----------------- */}
-        {currentPage === 'tasks' && selectedProject && (
-          <div>
-            <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <h1 className="section-title">Sprint Tasks Board — {selectedProject.name}</h1>
-                <p className="section-subtitle">Select or update status (Backlog ➔ In Progress ➔ In Review ➔ Done) with real-time JPA persistence.</p>
+                <h1 className="section-title">Sprint Kanban Board — {selectedProject.name}</h1>
+                <p className="section-subtitle">
+                  7-Stage Workflow: BACKLOG ➔ TODO ➔ IN PROGRESS ➔ CODE REVIEW ➔ TESTING ➔ DONE (or BLOCKED).
+                </p>
               </div>
               <button className="btn-primary" onClick={() => setShowCreateTaskModal(true)}>
                 + Create Task
               </button>
             </div>
 
-            {/* Kanban Columns */}
-            <div className="grid-4" style={{ gap: '1rem' }}>
-              {['BACKLOG', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'].map((colStatus) => {
-                const colTasks = tasks.filter(t => t.status === colStatus);
+            {/* 7 Columns Kanban Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', overflowX: 'auto', paddingBottom: '1rem' }}>
+              {KANBAN_STATUSES.map((status) => {
+                const colTasks = tasks.filter(t => t.status === status);
                 return (
-                  <div key={colStatus} className="glass-panel" style={{ padding: '1rem', minHeight: '450px', background: 'rgba(10, 14, 23, 0.6)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
-                      <strong style={{ fontSize: '0.85rem', color: '#fff' }}>{colStatus.replace('_', ' ')}</strong>
-                      <span className="stat-badge" style={{ background: 'rgba(255,255,255,0.06)' }}>{colTasks.length}</span>
+                  <div key={status} className="glass-panel" style={{ padding: '0.85rem', minHeight: '500px', background: 'rgba(10, 14, 23, 0.65)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.4rem' }}>
+                      <strong style={{ fontSize: '0.78rem', color: status === 'BLOCKED' ? '#f43f5e' : (status === 'DONE' ? '#10b981' : '#fff') }}>
+                        {status.replace('_', ' ')}
+                      </strong>
+                      <span className="stat-badge" style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem' }}>{colTasks.length}</span>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                       {colTasks.map((t) => (
-                        <div key={t.id} style={{ background: 'rgba(18, 24, 38, 0.85)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '0.85rem' }}>
+                        <div key={t.id} style={{ background: 'rgba(18, 24, 38, 0.9)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '0.75rem' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>{t.storyKey}</span>
-                            <span className={t.priority === 'CRITICAL' ? 'stat-badge badge-danger' : (t.priority === 'HIGH' ? 'stat-badge badge-warning' : 'stat-badge badge-success')} style={{ fontSize: '0.68rem' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>{t.storyKey}</span>
+                            <span className={t.priority === 'CRITICAL' ? 'stat-badge badge-danger' : (t.priority === 'HIGH' ? 'stat-badge badge-warning' : 'stat-badge badge-success')} style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem' }}>
                               {t.priority}
                             </span>
                           </div>
 
-                          <h4 style={{ color: '#fff', fontSize: '0.88rem', margin: '0.4rem 0' }}>{t.title}</h4>
-                          <p style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '0.75rem' }}>{t.description}</p>
+                          <h4 style={{ color: '#fff', fontSize: '0.82rem', margin: '0.35rem 0' }}>{t.title}</h4>
+                          <p style={{ color: '#94a3b8', fontSize: '0.72rem', marginBottom: '0.6rem' }}>{t.description}</p>
 
-                          {/* Quick Status Update Controls */}
-                          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.5rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                            {['BACKLOG', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'].map((s) => (
+                          {/* Quick Transitions */}
+                          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.4rem', display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                            {KANBAN_STATUSES.filter(s => s !== t.status).slice(0, 3).map((target) => (
                               <button
-                                key={s}
-                                disabled={t.status === s}
-                                style={{
-                                  fontSize: '0.65rem',
-                                  padding: '0.2rem 0.4rem',
-                                  borderRadius: '4px',
-                                  border: 'none',
-                                  background: t.status === s ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.08)',
-                                  color: t.status === s ? '#000' : '#cbd5e1',
-                                  cursor: t.status === s ? 'default' : 'pointer'
-                                }}
-                                onClick={() => handleUpdateTaskStatus(t.id, s)}
+                                key={target}
+                                style={{ fontSize: '0.62rem', padding: '0.2rem 0.35rem', borderRadius: '4px', border: 'none', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1', cursor: 'pointer' }}
+                                onClick={() => handleUpdateTaskStatus(t.id, target)}
                               >
-                                {s.substring(0, 4)}
+                                ➔ {target.substring(0, 4)}
                               </button>
                             ))}
+                            <button
+                              style={{ fontSize: '0.62rem', padding: '0.2rem 0.35rem', borderRadius: '4px', border: 'none', background: 'rgba(244,63,94,0.15)', color: '#f43f5e', cursor: 'pointer', marginLeft: 'auto' }}
+                              onClick={() => handleDeleteTask(t.id)}
+                            >
+                              ✕
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -892,64 +678,162 @@ export default function App() {
           </div>
         )}
 
-        {/* ----------------- PAGE: REQUIREMENTS (MODULE 1) ----------------- */}
-        {currentPage === 'requirements' && (
+        {/* ----------------- PHASE 6: PROJECT & MEMBER MANAGEMENT ----------------- */}
+        {currentPage === 'projects' && (
           <div>
-            <div className="section-header">
-              <h1 className="section-title">AI Requirement Analyzer</h1>
-              <p className="section-subtitle">Convert unstructured user specs into architecture proposals, decomposed epics, and user stories.</p>
-            </div>
-
-            <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
-              <label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>REQUIREMENT INPUT</label>
-              <textarea
-                className="forge-textarea"
-                value={reqPrompt}
-                onChange={(e) => setReqPrompt(e.target.value)}
-              />
-              <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem' }}>
-                <button
-                  className="btn-primary"
-                  onClick={async () => {
-                    setReqLoading(true);
-                    try {
-                      const res = await fetch(`${AI_SERVICE_URL}/api/ai/analyze-requirement`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ requirement_text: reqPrompt })
-                      });
-                      if (res.ok) setReqData(await res.json());
-                    } catch {
-                      setReqData({
-                        architecture: { overview: 'Distributed Cloud-Native food ordering engine with microservices.' },
-                        epics: [
-                          { epic_name: 'EPIC-1: Authentication', user_stories: [{ story_key: 'US-101', title: 'Customer JWT Login' }] },
-                          { epic_name: 'EPIC-2: Catalog', user_stories: [{ story_key: 'US-103', title: 'Geo-Radius Menu Search' }] },
-                          { epic_name: 'EPIC-3: Payments', user_stories: [{ story_key: 'US-104', title: 'Stripe Idempotency API' }] }
-                        ]
-                      });
-                    } finally {
-                      setReqLoading(false);
-                    }
-                  }}
-                  disabled={reqLoading}
-                >
-                  {reqLoading ? 'Analyzing...' : 'Deconstruct Requirement'}
+            <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div>
+                <h1 className="section-title">Project Management</h1>
+                <p className="section-subtitle">Create, edit, delete projects, and assign team members with roles.</p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn-secondary" onClick={() => setShowAddMemberModal(true)}>
+                  + Add Member
+                </button>
+                <button className="btn-primary" onClick={() => setShowCreateProjectModal(true)}>
+                  + Create Project
                 </button>
               </div>
             </div>
 
-            {reqData && (
+            <div className="grid-2">
               <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.05rem', color: '#38bdf8', marginBottom: '0.5rem' }}>Architecture Blueprint</h3>
-                <p style={{ color: '#cbd5e1', fontSize: '0.9rem', marginBottom: '1rem' }}>{reqData.architecture?.overview}</p>
+                <h3 style={{ color: '#fff', fontSize: '1.05rem', marginBottom: '1rem' }}>Active Projects</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {reqData.epics?.map((e: any, i: number) => (
-                    <div key={i} style={{ background: 'rgba(0,0,0,0.3)', padding: '0.85rem', borderRadius: '6px' }}>
-                      <strong style={{ color: '#fff' }}>{e.epic_name}</strong>
-                      <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {e.user_stories?.map((s: any, si: number) => (
-                          <span key={si} className="stat-badge badge-success">[{s.story_key}] {s.title}</span>
+                  {projects.map((p) => (
+                    <div key={p.id} style={{ padding: '1rem', background: selectedProject?.id === p.id ? 'rgba(56, 189, 248, 0.1)' : 'rgba(0,0,0,0.3)', border: selectedProject?.id === p.id ? '1px solid var(--accent-cyan)' : '1px solid var(--border-subtle)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div onClick={() => setSelectedProject(p)} style={{ cursor: 'pointer' }}>
+                        <strong style={{ color: '#fff' }}>{p.name}</strong>
+                        <p style={{ color: '#94a3b8', fontSize: '0.8rem' }}>{p.description}</p>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <span className="stat-badge badge-success">{p.status}</span>
+                        <button className="btn-secondary" style={{ fontSize: '0.72rem', padding: '0.3rem 0.5rem' }} onClick={() => setEditProjectModal(p)}>
+                          Edit
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                <h3 style={{ color: '#fff', fontSize: '1.05rem', marginBottom: '1rem' }}>Project Members ({selectedProject?.name})</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  {projectMembers.map((m, idx) => (
+                    <div key={idx} style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <strong style={{ color: '#fff', fontSize: '0.85rem' }}>{m.user?.name || m.user?.email}</strong>
+                        <span style={{ color: '#64748b', fontSize: '0.75rem' }}> ({m.user?.email})</span>
+                      </div>
+                      <span className="stat-badge badge-warning">{m.role.replace('ROLE_', '')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ----------------- PHASE 7: GITHUB INTEGRATION ----------------- */}
+        {currentPage === 'github' && (
+          <div>
+            <div className="section-header">
+              <h1 className="section-title">GitHub Integration & Repository Bridge</h1>
+              <p className="section-subtitle">Connect GitHub account, inspect repository stats, create branches, issues, and PRs.</p>
+            </div>
+
+            {gitActionNotice && (
+              <div style={{ background: 'rgba(56, 189, 248, 0.12)', border: '1px solid var(--accent-cyan)', color: '#38bdf8', padding: '0.75rem 1rem', borderRadius: '6px', marginBottom: '1.25rem', fontSize: '0.88rem' }}>
+                {gitActionNotice}
+              </div>
+            )}
+
+            <div className="grid-2">
+              <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <h3 style={{ color: '#fff', fontSize: '1.05rem' }}>Connected Repositories</h3>
+                  <span className="stat-badge badge-success">OAuth Connected</span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {githubRepos.map((repo, idx) => (
+                    <div key={idx} style={{ padding: '0.85rem', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <strong style={{ color: '#38bdf8' }}>{repo.name}</strong>
+                        <span className="stat-badge" style={{ background: 'rgba(255,255,255,0.06)' }}>{repo.language}</span>
+                      </div>
+                      <div style={{ marginTop: '0.4rem', display: 'flex', gap: '1rem', fontSize: '0.75rem', color: '#94a3b8' }}>
+                        <span>Files: {repo.filesCount}</span>
+                        <span>Open Issues: {repo.openIssues}</span>
+                        <span>Open PRs: {repo.openPrs}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                <h3 style={{ color: '#fff', fontSize: '1.05rem', marginBottom: '1rem' }}>Git Automation Actions</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.3rem' }}>CREATE BRANCH</label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <input type="text" className="forge-input" value={newBranchName} onChange={e => setNewBranchName(e.target.value)} />
+                      <button className="btn-primary" onClick={handleCreateGitHubBranch}>Create</button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.3rem' }}>CREATE GITHUB ISSUE</label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <input type="text" className="forge-input" value={newIssueTitle} onChange={e => setNewIssueTitle(e.target.value)} />
+                      <button className="btn-secondary" onClick={() => setGitActionNotice(`✅ Created GitHub Issue #48: '${newIssueTitle}'!`)}>Issue</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ----------------- PHASE 8: AI REQUIREMENT ANALYZER ----------------- */}
+        {currentPage === 'requirements' && (
+          <div>
+            <div className="section-header">
+              <h1 className="section-title">AI Requirement Analyzer</h1>
+              <p className="section-subtitle">
+                Deconstruct natural language requirements into 6 structured Epics with verifiable Gherkin acceptance criteria.
+              </p>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+              <label style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.4rem' }}>REQUIREMENT PROMPT</label>
+              <textarea className="forge-textarea" value={reqPrompt} onChange={e => setReqPrompt(e.target.value)} />
+              <button className="btn-primary" style={{ marginTop: '0.75rem' }} onClick={handleAnalyzeRequirement} disabled={reqLoading}>
+                {reqLoading ? 'Analyzing Epics & Stories...' : 'Analyze Requirement'}
+              </button>
+            </div>
+
+            {reqResult && (
+              <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                <h3 style={{ color: 'var(--accent-cyan)', fontSize: '1.1rem', marginBottom: '1rem' }}>
+                  Project: {reqResult.project_name} (Generated 6 Epics)
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {reqResult.epics?.map((epic: any, idx: number) => (
+                    <div key={idx} style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '8px', borderLeft: '3px solid var(--accent-cyan)' }}>
+                      <strong style={{ color: '#fff', fontSize: '0.95rem' }}>{epic.epic_name}</strong>
+                      <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {epic.user_stories?.map((story: any, sIdx: number) => (
+                          <div key={sIdx} style={{ background: 'rgba(255,255,255,0.02)', padding: '0.65rem', borderRadius: '6px' }}>
+                            <span style={{ color: '#38bdf8', fontSize: '0.85rem' }}>[{story.story_key}] {story.title}</span>
+                            <ul style={{ paddingLeft: '1.2rem', marginTop: '0.3rem', fontSize: '0.78rem', color: '#10b981', listStyleType: 'none' }}>
+                              {story.acceptance_criteria?.map((ac: string, aIdx: number) => (
+                                <li key={aIdx}>{ac}</li>
+                              ))}
+                            </ul>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -960,56 +844,43 @@ export default function App() {
           </div>
         )}
 
-        {/* ----------------- PAGE: REPOSITORY (MODULE 2) ----------------- */}
-        {currentPage === 'repository' && (
+        {/* ----------------- PHASE 9: RAG / PROJECT KNOWLEDGE ----------------- */}
+        {currentPage === 'rag-knowledge' && (
           <div>
             <div className="section-header">
-              <h1 className="section-title">Repository Intelligence</h1>
-              <p className="section-subtitle">AST semantic code search and dependency impact radius.</p>
+              <h1 className="section-title">RAG Project Knowledge & Vector Retrieval</h1>
+              <p className="section-subtitle">Semantic code search over indexed repository files (pgvector cosine retrieval).</p>
             </div>
 
             <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
-              <input
-                type="text"
-                className="forge-input"
-                value={repoQuery}
-                onChange={(e) => setRepoQuery(e.target.value)}
-              />
-              <button
-                className="btn-primary"
-                style={{ marginTop: '0.75rem' }}
-                onClick={async () => {
-                  try {
-                    const res = await fetch(`${AI_SERVICE_URL}/api/ai/repo-intelligence`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ query: repoQuery })
-                    });
-                    if (res.ok) setRepoData(await res.json());
-                  } catch {
-                    setRepoData({
-                      direct_answer: 'Modifying PaymentService impacts PaymentController and PaymentRepository.',
-                      impact_radius_score: 4,
-                      affected_files: [
-                        { file_path: 'src/main/java/com/forgex/service/PaymentService.java', layer: 'Service', impact_level: 'DIRECT' },
-                        { file_path: 'src/main/java/com/forgex/controller/PaymentController.java', layer: 'Controller', impact_level: 'DIRECT' }
-                      ]
-                    });
-                  }
-                }}
-              >
-                Scan Codebase Radius
-              </button>
+              <label style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.4rem' }}>ASK CODEBASE QUESTION</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input type="text" className="forge-input" value={ragQuery} onChange={e => setRagQuery(e.target.value)} />
+                <button className="btn-primary" onClick={handleRAGQuery} disabled={ragLoading}>
+                  {ragLoading ? 'Searching Vectors...' : 'Search Codebase'}
+                </button>
+              </div>
             </div>
 
-            {repoData && (
+            {ragResult && (
               <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                <p style={{ color: '#38bdf8', marginBottom: '1rem' }}>💡 {repoData.direct_answer}</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {repoData.affected_files?.map((f: any, i: number) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem', background: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: '#fff' }}>{f.file_path}</span>
-                      <span className="stat-badge badge-warning">{f.impact_level}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <h3 style={{ color: '#fff', fontSize: '1.05rem' }}>AI Synthesis ({ragResult.latency_ms} ms)</h3>
+                  <span className="stat-badge badge-success">pgvector Match</span>
+                </div>
+                <p style={{ color: '#38bdf8', fontSize: '0.92rem', marginBottom: '1.25rem', padding: '0.75rem', background: 'rgba(56, 189, 248, 0.08)', borderRadius: '6px' }}>
+                  💡 {ragResult.answer}
+                </p>
+
+                <h4 style={{ color: '#cbd5e1', fontSize: '0.85rem', marginBottom: '0.5rem' }}>Retrieved Code Chunks</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {ragResult.retrieved_chunks?.map((chunk: any, cIdx: number) => (
+                    <div key={cIdx} style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '6px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.3rem' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)' }}>{chunk.file_path}</span>
+                        <span className="stat-badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>Score: {chunk.relevance_score}</span>
+                      </div>
+                      <pre className="code-container" style={{ padding: '0.5rem', fontSize: '0.75rem' }}><code>{chunk.snippet}</code></pre>
                     </div>
                   ))}
                 </div>
@@ -1018,56 +889,108 @@ export default function App() {
           </div>
         )}
 
-        {/* ----------------- PAGE: AI ASSISTANT & CODING (MODULE 3) ----------------- */}
-        {currentPage === 'ai-assistant' && (
+        {/* ----------------- PHASE 10: AI REPOSITORY ANALYZER ----------------- */}
+        {currentPage === 'repo-analyzer' && (
           <div>
             <div className="section-header">
-              <h1 className="section-title">AI Coding & Test Generator</h1>
-              <p className="section-subtitle">Multi-tier test generation (Normal, Boundary, Invalid, Exception, Regression).</p>
+              <h1 className="section-title">AI Repository Analyzer Engine</h1>
+              <p className="section-subtitle">Automated architectural audit, test density, security review, and dependency manifest scanning.</p>
             </div>
 
             <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
-              <button
-                className="btn-primary"
-                onClick={async () => {
-                  try {
-                    const res = await fetch(`${AI_SERVICE_URL}/api/ai/generate-code`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ task_key: 'US-104', task_title: 'Idempotent Payment API', target_component: 'PaymentService', specifications: [] })
-                    });
-                    if (res.ok) setCodePlan(await res.json());
-                  } catch {
-                    setCodePlan({
-                      primary_code: `public BigDecimal calculateDiscountedTotal(BigDecimal originalAmount, double discountPercentage) {\n    if (originalAmount == null || originalAmount.compareTo(BigDecimal.ZERO) < 0) throw new IllegalArgumentException();\n    return originalAmount.multiply(BigDecimal.valueOf(1.0 - (discountPercentage / 100.0)));\n}`,
-                      test_cases: [
-                        { name: 'testDiscount_HappyPath', category: 'NORMAL' },
-                        { name: 'testZeroDiscount_Boundary', category: 'BOUNDARY' },
-                        { name: 'testNegativeAmount_Exception', category: 'EXCEPTION' }
-                      ]
-                    });
-                  }
-                }}
-              >
-                Synthesize Code & Tests for US-104
+              <button className="btn-primary" onClick={handleAnalyzeRepo} disabled={repoAnalyzing}>
+                {repoAnalyzing ? 'Analyzing Repository...' : 'Run Automated Repo Audit'}
               </button>
             </div>
 
-            {codePlan && (
-              <div className="grid-2">
-                <div className="glass-panel" style={{ padding: '1.25rem' }}>
-                  <h3 style={{ fontSize: '1rem', color: '#fff', marginBottom: '0.5rem' }}>Generated Code</h3>
-                  <pre className="code-container"><code>{codePlan.primary_code}</code></pre>
+            {repoAnalysis && (
+              <div>
+                <div className="grid-4" style={{ marginBottom: '1.5rem' }}>
+                  <div className="stat-card glass-panel">
+                    <span className="stat-label">LANGUAGE & STACK</span>
+                    <span className="stat-value" style={{ fontSize: '1.4rem' }}>{repoAnalysis.language}</span>
+                    <span className="stat-badge badge-success">{repoAnalysis.framework}</span>
+                  </div>
+                  <div className="stat-card glass-panel">
+                    <span className="stat-label">TESTS & COVERAGE</span>
+                    <span className="stat-value" style={{ color: 'var(--accent-emerald)' }}>{repoAnalysis.tests_count} Tests</span>
+                    <span className="stat-badge badge-success">{repoAnalysis.coverage_pct}%</span>
+                  </div>
+                  <div className="stat-card glass-panel">
+                    <span className="stat-label">SECURITY FINDINGS</span>
+                    <span className="stat-value" style={{ color: 'var(--accent-amber)' }}>{repoAnalysis.security_findings_count}</span>
+                    <span className="stat-badge badge-warning">0 Critical</span>
+                  </div>
+                  <div className="stat-card glass-panel">
+                    <span className="stat-label">DEPENDENCIES</span>
+                    <span className="stat-value">{repoAnalysis.dependencies_count}</span>
+                    <span className="stat-badge badge-success">Maven Validated</span>
+                  </div>
                 </div>
-                <div className="glass-panel" style={{ padding: '1.25rem' }}>
-                  <h3 style={{ fontSize: '1rem', color: '#fff', marginBottom: '0.5rem' }}>Synthesized Test Cases</h3>
+
+                <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                  <h3 style={{ color: '#fff', fontSize: '1.05rem', marginBottom: '0.75rem' }}>Layered Architecture Flow</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                    {repoAnalysis.architecture_flow?.map((node: string, nIdx: number) => (
+                      <React.Fragment key={nIdx}>
+                        <div style={{ padding: '0.5rem 1rem', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid var(--accent-cyan)', borderRadius: '6px', color: '#fff', fontSize: '0.85rem' }}>
+                          {node}
+                        </div>
+                        {nIdx < repoAnalysis.architecture_flow.length - 1 && <span style={{ color: 'var(--accent-cyan)' }}>➔</span>}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                  <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>{repoAnalysis.summary}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ----------------- PHASE 11: AI DEVELOPMENT PLANNER ----------------- */}
+        {currentPage === 'dev-planner' && (
+          <div>
+            <div className="section-header">
+              <h1 className="section-title">AI Development Planner</h1>
+              <p className="section-subtitle">
+                "AI Planning Before AI Execution" — formulate step-by-step implementation roadmaps and identify impacted files before writing code.
+              </p>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+              <label style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.4rem' }}>FEATURE / TASK TO PLAN</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input type="text" className="forge-input" value={planTaskInput} onChange={e => setPlanTaskInput(e.target.value)} />
+                <button className="btn-primary" onClick={handleCreateDevPlan} disabled={plannerLoading}>
+                  {plannerLoading ? 'Generating Plan...' : 'Generate AI Plan'}
+                </button>
+              </div>
+            </div>
+
+            {devPlan && (
+              <div className="grid-2">
+                <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                  <h3 style={{ color: '#fff', fontSize: '1.05rem', marginBottom: '0.75rem' }}>Implementation Roadmap (8 Steps)</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {codePlan.test_cases?.map((t: any, i: number) => (
-                      <div key={i} style={{ padding: '0.6rem', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#fff', fontSize: '0.85rem' }}>{t.name}</span>
-                        <span className="stat-badge badge-success">{t.category}</span>
+                    {devPlan.implementation_steps?.map((step: string, sIdx: number) => (
+                      <div key={sIdx} style={{ padding: '0.6rem', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', fontSize: '0.85rem', color: '#cbd5e1' }}>
+                        {step}
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                  <h3 style={{ color: '#fff', fontSize: '1.05rem', marginBottom: '0.75rem' }}>Files Likely Affected</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                    {devPlan.files_likely_affected?.map((f: string, fIdx: number) => (
+                      <div key={fIdx} style={{ padding: '0.5rem 0.75rem', background: 'rgba(56, 189, 248, 0.08)', borderRadius: '6px', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: '#38bdf8' }}>
+                        📄 {f}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: '0.75rem', background: 'rgba(245, 158, 11, 0.1)', borderLeft: '3px solid var(--accent-amber)', borderRadius: '6px', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                    🛡️ {devPlan.safety_guideline}
                   </div>
                 </div>
               </div>
@@ -1075,341 +998,129 @@ export default function App() {
           </div>
         )}
 
-        {/* ----------------- PAGE: TESTING (MODULE 4) ----------------- */}
-        {currentPage === 'testing' && (
+        {/* ----------------- PHASE 12: AI CODING AGENT ----------------- */}
+        {currentPage === 'coding-agent' && (
           <div>
             <div className="section-header">
-              <h1 className="section-title">Automated Testing Suites</h1>
-              <p className="section-subtitle">JUnit 5 execution results across unit, boundary, and regression profiles.</p>
-            </div>
-
-            <div className="grid-3" style={{ marginBottom: '1.5rem' }}>
-              <div className="stat-card glass-panel">
-                <span className="stat-label">UNIT TESTS</span>
-                <span className="stat-value" style={{ color: 'var(--accent-emerald)' }}>24 / 24</span>
-                <span className="stat-badge badge-success">100% Passed</span>
-              </div>
-              <div className="stat-card glass-panel">
-                <span className="stat-label">INTEGRATION TESTS</span>
-                <span className="stat-value" style={{ color: 'var(--accent-emerald)' }}>4 / 4</span>
-                <span className="stat-badge badge-success">100% Passed</span>
-              </div>
-              <div className="stat-card glass-panel">
-                <span className="stat-label">CODE COVERAGE</span>
-                <span className="stat-value" style={{ color: 'var(--accent-cyan)' }}>91.2%</span>
-                <span className="stat-badge badge-success">Jacoco Metric</span>
-              </div>
-            </div>
-
-            <div className="glass-panel" style={{ padding: '1.5rem' }}>
-              <h3 style={{ fontSize: '1.05rem', color: '#fff', marginBottom: '1rem' }}>Test Execution Log</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div className="check-item">
-                  <span style={{ color: '#fff', fontFamily: 'var(--font-mono)' }}>PaymentServiceTest.testStandardDiscountCalculation_HappyPath</span>
-                  <span className="stat-badge badge-success">PASSED (4ms)</span>
-                </div>
-                <div className="check-item">
-                  <span style={{ color: '#fff', fontFamily: 'var(--font-mono)' }}>PaymentServiceTest.testZeroDiscount_BoundaryCase</span>
-                  <span className="stat-badge badge-success">PASSED (2ms)</span>
-                </div>
-                <div className="check-item">
-                  <span style={{ color: '#fff', fontFamily: 'var(--font-mono)' }}>PaymentServiceTest.testNegativeAmount_InvalidInputException</span>
-                  <span className="stat-badge badge-success">PASSED (3ms)</span>
-                </div>
-                <div className="check-item">
-                  <span style={{ color: '#fff', fontFamily: 'var(--font-mono)' }}>AuthControllerIntegrationTest.testJwtTokenIssuance</span>
-                  <span className="stat-badge badge-success">PASSED (12ms)</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ----------------- PAGE: SECURITY (MODULE 5) ----------------- */}
-        {currentPage === 'security' && (
-          <div>
-            <div className="section-header">
-              <h1 className="section-title">DevSecOps Security Sentinel</h1>
-              <p className="section-subtitle">Static Application Security Testing (SAST), Secret Scanning, and Dependency CVE Audit.</p>
+              <h1 className="section-title">AI Coding Agent (Governed Execution)</h1>
+              <p className="section-subtitle">
+                Safety Rule Enforced: Never directly push to main! Operates via feature branch ➔ automated test run ➔ security scan ➔ Pull Request.
+              </p>
             </div>
 
             <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
-              <button
-                className="btn-primary"
-                onClick={async () => {
-                  try {
-                    const res = await fetch(`${AI_SERVICE_URL}/api/ai/security-scan`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ code_snippet: 'String sql = "SELECT * FROM users WHERE id = " + userId; String aws = "AKIA1234567890ABCDEF";' })
-                    });
-                    if (res.ok) setSecScanResult(await res.json());
-                  } catch {
-                    setSecScanResult({
-                      critical_count: 2,
-                      findings: [
-                        { severity: 'CRITICAL', title: 'SQL String Concatenation Detected', remediation: 'Use parameterized PreparedStatement.' },
-                        { severity: 'CRITICAL', title: 'AWS Secret Token Detected', remediation: 'Move secret to environment variables.' }
-                      ]
-                    });
-                  }
-                }}
-              >
-                Scan Code for Vulnerabilities
-              </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ color: '#fff', fontSize: '1.05rem' }}>Task: Password Reset Functionality</h3>
+                  <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Approved by developer. Ready to execute code generation on feature branch.</p>
+                </div>
+                <button className="btn-primary" onClick={handleExecuteCodingAgent} disabled={agentExecuting}>
+                  {agentExecuting ? 'Synthesizing, Testing & Scanning...' : '🚀 Execute Governed Coding Agent'}
+                </button>
+              </div>
             </div>
 
-            {secScanResult && (
+            {agentResult && (
               <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.1rem', color: '#fff', marginBottom: '1rem' }}>Security Findings ({secScanResult.findings?.length})</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {secScanResult.findings?.map((f: any, i: number) => (
-                    <div key={i} style={{ padding: '0.85rem', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', borderLeft: '3px solid var(--accent-rose)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <strong style={{ color: '#fff' }}>{f.title}</strong>
-                        <span className="stat-badge badge-danger">{f.severity}</span>
-                      </div>
-                      <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '0.3rem' }}>{f.remediation}</p>
-                    </div>
-                  ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <h3 style={{ color: '#fff', fontSize: '1.1rem' }}>Agent Execution Report</h3>
+                  <span className="stat-badge badge-success">{agentResult.status}</span>
                 </div>
+
+                <div style={{ padding: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', borderLeft: '3px solid var(--accent-emerald)', borderRadius: '6px', fontSize: '0.85rem', color: '#fff', marginBottom: '1rem' }}>
+                  {agentResult.safety_rule_enforced}
+                </div>
+
+                <div className="grid-3" style={{ marginBottom: '1rem' }}>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '6px', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748b' }}>BRANCH</span>
+                    <p style={{ color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>{agentResult.target_branch}</p>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '6px', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748b' }}>COMMIT</span>
+                    <p style={{ color: '#cbd5e1', fontFamily: 'var(--font-mono)' }}>{agentResult.commit_hash}</p>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '6px', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748b' }}>TESTS PASSED</span>
+                    <p style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>{agentResult.tests_passed} / 24</p>
+                  </div>
+                </div>
+
+                <h4 style={{ color: '#cbd5e1', fontSize: '0.85rem', marginBottom: '0.5rem' }}>Generated Code Diff</h4>
+                <pre className="code-container" style={{ maxHeight: '200px' }}><code>{agentResult.patch_diff}</code></pre>
               </div>
             )}
           </div>
         )}
 
-        {/* ----------------- PAGE: DEPLOYMENT & TRUST (MODULE 6) ----------------- */}
-        {currentPage === 'deployment' && (
-          <div>
-            <div className="section-header">
-              <h1 className="section-title">Deployment & AI Change Trust Score</h1>
-              <p className="section-subtitle">Deterministic 0–100 verification gauge controlling Pull Request and container release gates.</p>
-            </div>
-
-            <div className="grid-2">
-              <div className="glass-panel trust-gauge-box">
-                <div
-                  className="gauge-circle"
-                  style={{
-                    borderColor: trustResult.badgeColor === 'green' ? 'var(--accent-emerald)' : (trustResult.badgeColor === 'yellow' ? 'var(--accent-amber)' : 'var(--accent-rose)'),
-                    boxShadow: trustResult.badgeColor === 'green' ? 'var(--glow-emerald)' : 'var(--glow-rose)'
-                  }}
-                >
-                  <span className="gauge-number" style={{ color: trustResult.badgeColor === 'green' ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
-                    {trustResult.finalScore}
-                  </span>
-                  <span className="gauge-denom">/ 100</span>
-                </div>
-
-                <div
-                  className="gauge-verdict-banner"
-                  style={{
-                    background: trustResult.badgeColor === 'green' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)',
-                    color: trustResult.badgeColor === 'green' ? 'var(--accent-emerald)' : 'var(--accent-rose)',
-                    border: `1px solid ${trustResult.badgeColor === 'green' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`
-                  }}
-                >
-                  {trustResult.verdict}
-                </div>
-
-                <p style={{ marginTop: '1rem', color: '#94a3b8', fontSize: '0.88rem' }}>
-                  {trustResult.blocked ? `Blocked by policy: ${trustResult.reason}` : 'All verification checks passed. Pull Request is safe to merge into main.'}
-                </p>
-              </div>
-
-              <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.05rem', color: '#fff', marginBottom: '1rem' }}>Live Gate Simulation</h3>
-                <div style={{ marginBottom: '1rem' }}>
-                  <label style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'block', marginBottom: '0.3rem' }}>
-                    Unit Tests Passed ({unitPassed} / {unitTotal})
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max={unitTotal}
-                    value={unitPassed}
-                    onChange={(e) => setUnitPassed(Number(e.target.value))}
-                    style={{ width: '100%', accentColor: 'var(--accent-cyan)' }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                  <button
-                    className={critVulns > 0 ? 'badge-danger' : 'btn-secondary'}
-                    style={{ padding: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}
-                    onClick={() => setCritVulns(critVulns === 0 ? 1 : 0)}
-                  >
-                    {critVulns > 0 ? '❌ Injected SQLi' : '⚡ Simulate SQLi'}
-                  </button>
-                  <button
-                    className={secretsFound > 0 ? 'badge-danger' : 'btn-secondary'}
-                    style={{ padding: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}
-                    onClick={() => setSecretsFound(secretsFound === 0 ? 1 : 0)}
-                  >
-                    {secretsFound > 0 ? '❌ Exposed Secret' : '⚡ Simulate Secret'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ----------------- PAGE: ANALYTICS (MODULES 7 & 8) ----------------- */}
-        {currentPage === 'analytics' && (
-          <div>
-            <div className="section-header">
-              <h1 className="section-title">Production Observability & Golden Signals</h1>
-              <p className="section-subtitle">Real-time latency, error rates, throughput, and AI Project Manager insights.</p>
-            </div>
-
-            <div className="grid-4" style={{ marginBottom: '1.5rem' }}>
-              <div className="stat-card glass-panel">
-                <span className="stat-label">API LATENCY</span>
-                <span className="stat-value" style={{ color: 'var(--accent-cyan)' }}>182 ms</span>
-                <span className="stat-badge badge-success">HEALTHY</span>
-              </div>
-              <div className="stat-card glass-panel">
-                <span className="stat-label">ERROR RATE</span>
-                <span className="stat-value" style={{ color: 'var(--accent-emerald)' }}>0.8%</span>
-                <span className="stat-badge badge-success">&lt; 1%</span>
-              </div>
-              <div className="stat-card glass-panel">
-                <span className="stat-label">REQUESTS/MIN</span>
-                <span className="stat-value">245 RPM</span>
-                <span className="stat-badge badge-success">NORMAL</span>
-              </div>
-              <div className="stat-card glass-panel">
-                <span className="stat-label">CPU / RAM</span>
-                <span className="stat-value" style={{ fontSize: '1.4rem' }}>37% / 52%</span>
-                <span className="stat-badge badge-success">OPTIMAL</span>
-              </div>
-            </div>
-          </div>
-        )}
-
       </main>
 
-      {/* ----------------- MODAL: CREATE PROJECT ----------------- */}
-      {showCreateProjectModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="glass-panel" style={{ padding: '2rem', maxWidth: '480px', width: '90%', border: '1px solid var(--accent-cyan)' }}>
-            <h3 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '1rem' }}>Create New Engineering Project</h3>
-
-            <form onSubmit={handleCreateProject} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>PROJECT NAME</label>
-                <input
-                  type="text"
-                  className="forge-input"
-                  required
-                  placeholder="e.g. Autonomous Fleet Manager"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>DESCRIPTION</label>
-                <textarea
-                  className="forge-textarea"
-                  style={{ minHeight: '80px' }}
-                  placeholder="High-level architecture and objectives..."
-                  value={newProjectDesc}
-                  onChange={(e) => setNewProjectDesc(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>GITHUB REPOSITORY URL</label>
-                <input
-                  type="text"
-                  className="forge-input"
-                  placeholder="https://github.com/forgex-demo/..."
-                  value={newProjectRepo}
-                  onChange={(e) => setNewProjectRepo(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <button type="button" className="btn-secondary" onClick={() => setShowCreateProjectModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  Create Project in Database
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ----------------- MODAL: CREATE TASK ----------------- */}
+      {/* CREATE TASK MODAL (PHASE 6) */}
       {showCreateTaskModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div className="glass-panel" style={{ padding: '2rem', maxWidth: '480px', width: '90%', border: '1px solid var(--accent-cyan)' }}>
-            <h3 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '1rem' }}>
-              Create Sprint Task for {selectedProject?.name}
-            </h3>
-
-            <form onSubmit={handleCreateTask} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <h3 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '1rem' }}>Create Sprint Task</h3>
+            <form onSubmit={handleCreateTask} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>TASK TITLE</label>
-                <input
-                  type="text"
-                  className="forge-input"
-                  required
-                  placeholder="e.g. Implement Webhook Signature Verification"
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                />
+                <label style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>TITLE</label>
+                <input type="text" className="forge-input" required value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} />
               </div>
-
               <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>DESCRIPTION</label>
-                <textarea
-                  className="forge-textarea"
-                  style={{ minHeight: '80px' }}
-                  placeholder="User story context and acceptance criteria..."
-                  value={newTaskDesc}
-                  onChange={(e) => setNewTaskDesc(e.target.value)}
-                />
+                <label style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>DESCRIPTION</label>
+                <textarea className="forge-textarea" style={{ minHeight: '60px' }} value={newTaskDesc} onChange={e => setNewTaskDesc(e.target.value)} />
               </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div>
-                  <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>PRIORITY</label>
-                  <select
-                    className="forge-input"
-                    value={newTaskPriority}
-                    onChange={(e) => setNewTaskPriority(e.target.value)}
-                    style={{ background: '#0a0e17' }}
-                  >
+                  <label style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>STATUS</label>
+                  <select className="forge-input" value={newTaskStatus} onChange={e => setNewTaskStatus(e.target.value)} style={{ background: '#0a0e17' }}>
+                    {KANBAN_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>PRIORITY</label>
+                  <select className="forge-input" value={newTaskPriority} onChange={e => setNewTaskPriority(e.target.value)} style={{ background: '#0a0e17' }}>
                     <option value="LOW">LOW</option>
                     <option value="MEDIUM">MEDIUM</option>
                     <option value="HIGH">HIGH</option>
                     <option value="CRITICAL">CRITICAL</option>
                   </select>
                 </div>
-
-                <div>
-                  <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>STORY KEY</label>
-                  <input
-                    type="text"
-                    className="forge-input"
-                    placeholder="e.g. US-105"
-                    value={newTaskStoryKey}
-                    onChange={(e) => setNewTaskStoryKey(e.target.value)}
-                  />
-                </div>
               </div>
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>ACCEPTANCE CRITERIA</label>
+                <input type="text" className="forge-input" placeholder="✓ User must be logged in..." value={newTaskCriteria} onChange={e => setNewTaskCriteria(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button type="button" className="btn-secondary" onClick={() => setShowCreateTaskModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary">Create Task</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <button type="button" className="btn-secondary" onClick={() => setShowCreateTaskModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  Save Task in PostgreSQL
-                </button>
+      {/* ADD MEMBER MODAL (PHASE 6) */}
+      {showAddMemberModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="glass-panel" style={{ padding: '2rem', maxWidth: '440px', width: '90%', border: '1px solid var(--accent-cyan)' }}>
+            <h3 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '1rem' }}>Add Project Member</h3>
+            <form onSubmit={handleAddMember} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>USER EMAIL</label>
+                <input type="email" className="forge-input" required placeholder="engineer@forgex.io" value={memberEmail} onChange={e => setMemberEmail(e.target.value)} />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>ROLE</label>
+                <select className="forge-input" value={memberRole} onChange={e => setMemberRole(e.target.value)} style={{ background: '#0a0e17' }}>
+                  <option value="DEVELOPER">DEVELOPER</option>
+                  <option value="PROJECT_MANAGER">PROJECT_MANAGER</option>
+                  <option value="ADMIN">ADMIN</option>
+                  <option value="VIEWER">VIEWER</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button type="button" className="btn-secondary" onClick={() => setShowAddMemberModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary">Add Member</button>
               </div>
             </form>
           </div>

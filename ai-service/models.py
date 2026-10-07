@@ -1,10 +1,10 @@
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
-# 1. Requirement Analysis Models
+# Phase 8: Requirement Models
 class RequirementRequest(BaseModel):
-    requirement_text: str = Field(..., description="Raw requirement prompt from human stakeholder")
-    project_name: Optional[str] = "Demo Project"
+    requirement_text: str
+    project_name: Optional[str] = "Online Parking Reservation System"
 
 class UserStory(BaseModel):
     story_key: str
@@ -31,68 +31,86 @@ class RequirementAnalysisResponse(BaseModel):
     epics: List[Epic]
     total_stories: int
 
-# 2. Repository Intelligence Models
-class RepoQueryRequest(BaseModel):
+# Phase 9: RAG / Knowledge Models
+class RAGQueryRequest(BaseModel):
     query: str
-    target_service_or_file: Optional[str] = None
+    repository_id: Optional[str] = "food-delivery-system"
 
-class AffectedFile(BaseModel):
+class CodeChunk(BaseModel):
     file_path: str
-    layer: str  # Controller, Service, Repository, Model, DTO
-    impact_level: str  # DIRECT, INDIRECT, LOW
-    reason: str
+    symbol_name: str
+    line_start: int
+    line_end: int
+    snippet: str
+    relevance_score: float
 
-class RepoIntelligenceResponse(BaseModel):
+class RAGQueryResponse(BaseModel):
     query: str
-    direct_answer: str
-    affected_files: List[AffectedFile]
-    recommended_test_files: List[str]
-    impact_radius_score: int
+    answer: str
+    retrieved_chunks: List[CodeChunk]
+    latency_ms: float
 
-# 3. Code Generation Models
-class CodeGenRequest(BaseModel):
-    task_key: str
+# Phase 10: Repo Analyzer Models
+class RepoAnalyzeRequest(BaseModel):
+    repository_name: str
+
+class RepoAnalysisResponse(BaseModel):
+    language: str
+    framework: str
+    database: str
+    architecture_type: str
+    architecture_flow: List[str]
+    tests_count: int
+    coverage_pct: float
+    security_findings_count: int
+    dependencies_count: int
+    summary: str
+
+# Phase 11: AI Development Planner Models
+class DevPlanRequest(BaseModel):
+    task_description: str
+    target_component: Optional[str] = "Authentication Module"
+
+class DevPlanResponse(BaseModel):
+    task_description: str
+    implementation_steps: List[str]
+    files_likely_affected: List[str]
+    testing_strategy: List[str]
+    safety_guideline: str
+
+# Phase 12: AI Coding Agent Models
+class CodeAgentExecuteRequest(BaseModel):
     task_title: str
-    target_component: str
-    specifications: List[str]
+    branch_name: Optional[str] = "feature/password-reset"
+    developer_approved: bool = True
 
-class GeneratedTestCase(BaseModel):
-    name: str
-    category: str  # NORMAL, BOUNDARY, INVALID_INPUT, EXCEPTION, REGRESSION
-    description: str
-    code_snippet: str
+class CodeAgentExecuteResponse(BaseModel):
+    task_title: str
+    target_branch: str
+    safety_rule_enforced: str
+    commit_hash: str
+    commit_message: str
+    changed_files: List[str]
+    patch_diff: str
+    tests_run: int
+    tests_passed: int
+    security_status: str
+    pr_url: str
+    status: str
 
-class CodeGenResponse(BaseModel):
-    task_key: str
-    implementation_plan: List[str]
-    primary_code: str
-    file_path: str
-    test_cases: List[GeneratedTestCase]
-    total_tests_generated: int
-
-# 4. Security Scan Models
+# Security & Trust Score Models
 class SecurityScanRequest(BaseModel):
     code_snippet: str
-    file_path: Optional[str] = "src/main/java/Service.java"
     dependencies: Optional[List[str]] = []
-
-class SecurityFinding(BaseModel):
-    severity: str  # CRITICAL, HIGH, MEDIUM, LOW, INFO
-    category: str  # SQL_INJECTION, XSS, HARDCODED_SECRET, VULN_DEPENDENCY, INSECURE_AUTH
-    title: str
-    description: str
-    line_number: Optional[int] = None
-    remediation: str
 
 class SecurityScanResponse(BaseModel):
     scan_status: str
     critical_count: int
     high_count: int
     medium_count: int
-    findings: List[SecurityFinding]
+    findings: List[Dict[str, Any]]
     is_deployable: bool
 
-# 5. AI Change Trust Score Models
 class TrustScoreRequest(BaseModel):
     unit_tests_passed: int
     unit_tests_total: int
@@ -103,19 +121,3 @@ class TrustScoreRequest(BaseModel):
     medium_vulnerabilities: int
     secrets_detected: int
     requirement_coverage_pct: float
-    code_quality_pct: Optional[float] = 95.0
-
-class VectorBreakdown(BaseModel):
-    name: str
-    score: float
-    max_weight: float
-    status: str
-    detail: str
-
-class TrustScoreResponse(BaseModel):
-    overall_score: int
-    verdict: str  # SAFE TO REVIEW, REQUIRES APPROVAL, BLOCKED - INSECURE
-    badge_color: str  # green, yellow, red
-    is_safe_to_deploy: bool
-    summary_message: str
-    vectors: List[VectorBreakdown]
