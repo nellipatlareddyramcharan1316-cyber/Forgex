@@ -200,9 +200,17 @@ export default function App() {
   const [demoRunning, setDemoRunning] = useState(false);
   const [currentDemoStepIndex, setCurrentDemoStepIndex] = useState(0);
 
+  const [navCategory, setNavCategory] = useState<'ALL' | 'PLAN' | 'AI_ENGINE' | 'QUALITY' | 'OPS'>('ALL');
+
   const showToast = (msg: string) => {
     setToastAlert(msg);
     setTimeout(() => setToastAlert(null), 4500);
+  };
+
+  const handleCopyToClipboard = (text: string, label = 'Code') => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    showToast(`📋 ${label} copied to clipboard!`);
   };
 
   // Fetch Projects & Tasks
@@ -1048,74 +1056,153 @@ export default function App() {
             <span className="pulse-dot"></span>
             <span>USER: {currentUser.name} ({currentUser.role.replace('ROLE_', '')})</span>
           </div>
+          <button
+            className="btn-primary"
+            style={{
+              background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
+              border: 'none',
+              padding: '0.42rem 1rem',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              boxShadow: '0 0 16px rgba(245, 158, 11, 0.45)',
+              cursor: 'pointer'
+            }}
+            onClick={() => setCurrentPage('killer-demo')}
+          >
+            ⚡ 1-Click Killer Demo
+          </button>
           <button className="btn-secondary" style={{ padding: '0.35rem 0.8rem', fontSize: '0.78rem' }} onClick={handleLogout}>
             Logout
           </button>
         </div>
       </header>
 
+      {/* Domain Category Filter Bar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0.55rem 2rem',
+        background: 'rgba(7, 10, 18, 0.95)',
+        borderBottom: '1px solid var(--border-subtle)',
+        flexWrap: 'wrap',
+        gap: '0.5rem'
+      }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ color: '#64748b', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.06em', marginRight: '0.3rem' }}>DOMAIN VIEW:</span>
+          {[
+            { id: 'ALL', label: '🌐 All Modules (20)' },
+            { id: 'PLAN', label: '📋 Plan & Spec' },
+            { id: 'AI_ENGINE', label: '🤖 Autonomous AI' },
+            { id: 'QUALITY', label: '🛡️ QA & Security' },
+            { id: 'OPS', label: '🚀 Cloud & Governance' },
+          ].map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setNavCategory(cat.id as any)}
+              style={{
+                background: navCategory === cat.id ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                color: navCategory === cat.id ? 'var(--accent-cyan)' : '#94a3b8',
+                border: navCategory === cat.id ? '1px solid var(--accent-cyan)' : '1px solid var(--border-subtle)',
+                borderRadius: '9999px',
+                padding: '0.22rem 0.75rem',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                fontWeight: 600,
+                transition: 'all 0.15s ease'
+              }}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: '0.72rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.45rem', fontFamily: 'var(--font-mono)' }}>
+          <span className="pulse-dot"></span>
+          <span>SYSTEM CLUSTER SLA: 100% HEALTHY</span>
+        </div>
+      </div>
+
       {/* Navigation Tabs covering all phases */}
       <nav className="nav-tabs">
-        <button className={`nav-tab-btn ${currentPage === 'kanban' ? 'active' : ''}`} onClick={() => setCurrentPage('kanban')}>
-          📌 Phase 6: Kanban Board
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'projects' ? 'active' : ''}`} onClick={() => setCurrentPage('projects')}>
-          📁 Phase 6: Project Management
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'github' ? 'active' : ''}`} onClick={() => setCurrentPage('github')}>
-          🐙 Phase 7: GitHub Integration
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'requirements' ? 'active' : ''}`} onClick={() => setCurrentPage('requirements')}>
-          📋 Phase 8: AI Requirement Analyzer
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'rag-knowledge' ? 'active' : ''}`} onClick={() => setCurrentPage('rag-knowledge')}>
-          🧠 Phase 9: RAG Project Knowledge
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'repo-analyzer' ? 'active' : ''}`} onClick={() => setCurrentPage('repo-analyzer')}>
-          🔍 Phase 10: AI Repo Analyzer
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'dev-planner' ? 'active' : ''}`} onClick={() => setCurrentPage('dev-planner')}>
-          📝 Phase 11: AI Development Planner
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'coding-agent' ? 'active' : ''}`} onClick={() => setCurrentPage('coding-agent')}>
-          💻 Phase 12: AI Coding Agent
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'test-generator' ? 'active' : ''}`} onClick={() => setCurrentPage('test-generator')}>
-          🧪 Phase 13: AI Test Agent
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'code-review' ? 'active' : ''}`} onClick={() => setCurrentPage('code-review')}>
-          🧐 Phase 14: AI Code Review
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'security-scanner' ? 'active' : ''}`} onClick={() => setCurrentPage('security-scanner')}>
-          🛡️ Phase 15: Security Scanner
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'trust-score' ? 'active' : ''}`} onClick={() => setCurrentPage('trust-score')}>
-          ⭐ Phase 16: AI Trust Score
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'cicd-docker' ? 'active' : ''}`} onClick={() => setCurrentPage('cicd-docker')}>
-          🚀 Phase 17 & 18: CI/CD & Docker
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'observability' ? 'active' : ''}`} onClick={() => { setCurrentPage('observability'); if (!telemetryData) handleFetchMonitoring(); }}>
-          📊 Phase 19 & 20: Observability
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'ai-pm' ? 'active' : ''}`} onClick={() => { setCurrentPage('ai-pm'); if (!pmAnalysis) handleFetchPmAnalysis(); }}>
-          🤖 Phase 21: AI Project Manager
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'analytics' ? 'active' : ''}`} onClick={() => { setCurrentPage('analytics'); if (!healthAnalytics) handleFetchHealthAnalytics(); }}>
-          📈 Phase 22: Analytics Dashboard
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'notifications' ? 'active' : ''}`} onClick={() => { setCurrentPage('notifications'); if (notifications.length === 0) handleFetchNotifications(); }}>
-          🔔 Phase 23: Notifications
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'admin-panel' ? 'active' : ''}`} onClick={() => { setCurrentPage('admin-panel'); if (!adminMetrics) handleFetchAdminMetrics(); }}>
-          👑 Phase 24: Admin Panel
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'prompt-defense' ? 'active' : ''}`} onClick={() => setCurrentPage('prompt-defense')}>
-          🛡️ Phase 26: Prompt Defense
-        </button>
-        <button className={`nav-tab-btn ${currentPage === 'killer-demo' ? 'active' : ''}`} style={{ borderColor: 'var(--accent-amber)', color: 'var(--accent-amber)' }} onClick={() => setCurrentPage('killer-demo')}>
-          🎬 Phase 30: Killer Demo
-        </button>
+        {(navCategory === 'ALL' || navCategory === 'PLAN') && (
+          <>
+            <button className={`nav-tab-btn ${currentPage === 'kanban' ? 'active' : ''}`} onClick={() => setCurrentPage('kanban')}>
+              📌 Phase 6: Kanban Board
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'projects' ? 'active' : ''}`} onClick={() => setCurrentPage('projects')}>
+              📁 Phase 6: Project Management
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'requirements' ? 'active' : ''}`} onClick={() => setCurrentPage('requirements')}>
+              📋 Phase 8: AI Requirement Analyzer
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'ai-pm' ? 'active' : ''}`} onClick={() => { setCurrentPage('ai-pm'); if (!pmAnalysis) handleFetchPmAnalysis(); }}>
+              🤖 Phase 21: AI Project Manager
+            </button>
+          </>
+        )}
+
+        {(navCategory === 'ALL' || navCategory === 'AI_ENGINE') && (
+          <>
+            <button className={`nav-tab-btn ${currentPage === 'rag-knowledge' ? 'active' : ''}`} onClick={() => setCurrentPage('rag-knowledge')}>
+              🧠 Phase 9: RAG Project Knowledge
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'repo-analyzer' ? 'active' : ''}`} onClick={() => setCurrentPage('repo-analyzer')}>
+              🔍 Phase 10: AI Repo Analyzer
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'dev-planner' ? 'active' : ''}`} onClick={() => setCurrentPage('dev-planner')}>
+              📝 Phase 11: AI Development Planner
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'coding-agent' ? 'active' : ''}`} onClick={() => setCurrentPage('coding-agent')}>
+              💻 Phase 12: AI Coding Agent
+            </button>
+          </>
+        )}
+
+        {(navCategory === 'ALL' || navCategory === 'QUALITY') && (
+          <>
+            <button className={`nav-tab-btn ${currentPage === 'test-generator' ? 'active' : ''}`} onClick={() => setCurrentPage('test-generator')}>
+              🧪 Phase 13: AI Test Agent
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'code-review' ? 'active' : ''}`} onClick={() => setCurrentPage('code-review')}>
+              🧐 Phase 14: AI Code Review
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'security-scanner' ? 'active' : ''}`} onClick={() => setCurrentPage('security-scanner')}>
+              🛡️ Phase 15: Security Scanner
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'trust-score' ? 'active' : ''}`} onClick={() => setCurrentPage('trust-score')}>
+              ⭐ Phase 16: AI Trust Score
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'prompt-defense' ? 'active' : ''}`} onClick={() => setCurrentPage('prompt-defense')}>
+              🛡️ Phase 26: Prompt Defense
+            </button>
+          </>
+        )}
+
+        {(navCategory === 'ALL' || navCategory === 'OPS') && (
+          <>
+            <button className={`nav-tab-btn ${currentPage === 'github' ? 'active' : ''}`} onClick={() => setCurrentPage('github')}>
+              🐙 Phase 7: GitHub Integration
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'cicd-docker' ? 'active' : ''}`} onClick={() => setCurrentPage('cicd-docker')}>
+              🚀 Phase 17 & 18: CI/CD & Docker
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'observability' ? 'active' : ''}`} onClick={() => { setCurrentPage('observability'); if (!telemetryData) handleFetchMonitoring(); }}>
+              📊 Phase 19 & 20: Observability
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'analytics' ? 'active' : ''}`} onClick={() => { setCurrentPage('analytics'); if (!healthAnalytics) handleFetchHealthAnalytics(); }}>
+              📈 Phase 22: Analytics Dashboard
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'notifications' ? 'active' : ''}`} onClick={() => { setCurrentPage('notifications'); if (notifications.length === 0) handleFetchNotifications(); }}>
+              🔔 Phase 23: Notifications
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'admin-panel' ? 'active' : ''}`} onClick={() => { setCurrentPage('admin-panel'); if (!adminMetrics) handleFetchAdminMetrics(); }}>
+              👑 Phase 24: Admin Panel
+            </button>
+            <button className={`nav-tab-btn ${currentPage === 'killer-demo' ? 'active' : ''}`} style={{ borderColor: 'var(--accent-amber)', color: 'var(--accent-amber)' }} onClick={() => setCurrentPage('killer-demo')}>
+              🎬 Phase 30: Killer Demo
+            </button>
+          </>
+        )}
       </nav>
 
       <main className="main-content">
@@ -1557,7 +1644,16 @@ export default function App() {
                   </div>
                 </div>
 
-                <h4 style={{ color: '#cbd5e1', fontSize: '0.85rem', marginBottom: '0.5rem' }}>Generated Code Diff</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <h4 style={{ color: '#cbd5e1', fontSize: '0.85rem', margin: 0 }}>Generated Code Diff</h4>
+                  <button 
+                    className="btn-secondary" 
+                    style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem' }}
+                    onClick={() => handleCopyToClipboard(agentResult.patch_diff, 'Code Diff')}
+                  >
+                    📋 Copy Diff
+                  </button>
+                </div>
                 <pre className="code-container" style={{ maxHeight: '200px' }}><code>{agentResult.patch_diff}</code></pre>
               </div>
             )}
@@ -1659,7 +1755,16 @@ export default function App() {
                   ))}
                 </div>
 
-                <h4 style={{ color: '#fff', fontSize: '0.95rem', marginBottom: '0.5rem' }}>Generated Test File ({testResult.framework}):</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <h4 style={{ color: '#fff', fontSize: '0.95rem', margin: 0 }}>Generated Test File ({testResult.framework}):</h4>
+                  <button 
+                    className="btn-secondary" 
+                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem' }}
+                    onClick={() => handleCopyToClipboard(testResult.full_test_code, 'Test Suite')}
+                  >
+                    📋 Copy Test Code
+                  </button>
+                </div>
                 <pre className="code-container" style={{ maxHeight: '280px' }}><code>{testResult.full_test_code}</code></pre>
               </div>
             )}
@@ -2533,8 +2638,17 @@ export default function App() {
                 )}
 
                 <div>
-                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, marginBottom: '0.3rem' }}>
-                    SANITIZED &amp; ISOLATED LLM INGESTION CONTEXT:
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                    <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>
+                      SANITIZED &amp; ISOLATED LLM INGESTION CONTEXT:
+                    </span>
+                    <button
+                      className="btn-secondary"
+                      style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem' }}
+                      onClick={() => handleCopyToClipboard(promptDefenseResult.sanitized_prompt, 'Sanitized Context')}
+                    >
+                      📋 Copy Context
+                    </button>
                   </div>
                   <pre style={{ background: '#0a0e17', padding: '1rem', borderRadius: '8px', color: '#38bdf8', fontSize: '0.8rem', overflowX: 'auto', border: '1px solid var(--border-subtle)' }}>
                     {promptDefenseResult.sanitized_prompt}
