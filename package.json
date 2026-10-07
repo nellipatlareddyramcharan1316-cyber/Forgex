@@ -1,0 +1,24 @@
+{
+  "name": "forgex-platform",
+  "version": "1.0.0",
+  "description": "ForgeX — AI-Native Software Engineering & DevSecOps Platform",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview",
+    "test": "npm --prefix frontend run test:run",
+    "backend": "mvn -f backend spring-boot:run",
+    "ai": "python -m uvicorn ai-service.main:app --port 8000"
+  },
+  "keywords": [
+    "ai",
+    "devsecops",
+    "software-engineering",
+    "spring-boot",
+    "fastapi",
+    "react"
+  ],
+  "author": "ForgeX Team",
+  "license": "MIT"
+}
