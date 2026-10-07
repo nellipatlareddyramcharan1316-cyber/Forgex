@@ -224,3 +224,96 @@ class MonitoringMetricsResponse(BaseModel):
     memory_usage_pct: float
     services: Dict[str, str]
     timestamp: str
+
+# ==========================================
+# Phase 21: AI Project Manager Models ⭐
+# ==========================================
+class PMAnalysisRequest(BaseModel):
+    testing_tasks: int = 12
+    backend_tasks: int = 2
+    frontend_tasks: int = 1
+    stale_in_progress_days: int = 4
+    stale_tasks_count: int = 5
+    missing_test_features: Optional[List[str]] = ["PaymentService (Stripe webhook checkout)"]
+
+class PMBottleneck(BaseModel):
+    area: str
+    severity: str
+    message: str
+    action_item: str
+
+class PMAnalysisResponse(BaseModel):
+    bottlenecks: List[PMBottleneck]
+    sprint_completion_probability: int
+    velocity_status: str
+    risk_factors: List[str]
+    executive_summary: str
+
+# ==========================================
+# Phase 22: Project Analytics & Health Models
+# ==========================================
+class ProjectHealthResponse(BaseModel):
+    requirements_pct: int
+    tasks_pct: int
+    code_pct: int
+    testing_pct: int
+    security_pct: int
+    deployment_pct: int
+    overall_health_pct: int
+    velocity_history: List[Dict[str, Any]]
+    commit_history: List[Dict[str, Any]]
+
+# ==========================================
+# Phase 23: Notification Models
+# ==========================================
+class NotificationItem(BaseModel):
+    id: str
+    title: str
+    message: str
+    type: str
+    timestamp: str
+    read: bool = False
+
+class NotificationListResponse(BaseModel):
+    notifications: List[NotificationItem]
+    unread_count: int
+
+# ==========================================
+# Phase 24: Admin Panel Metrics Models
+# ==========================================
+class AdminMetricsResponse(BaseModel):
+    total_users: int
+    projects_count: int
+    ai_requests_count: int
+    repositories_count: int
+    deployments_count: int
+    system_health: str
+    security_incidents: int
+
+# ==========================================
+# Phase 26: Security Hardening / Prompt Injection Models
+# ==========================================
+class PromptSanitizeRequest(BaseModel):
+    prompt_or_code: str
+
+class PromptSanitizeResponse(BaseModel):
+    is_safe: bool
+    threat_detected: Optional[str]
+    sanitized_content: str
+    defense_strategy: str
+
+# ==========================================
+# Phase 30: Final Killer Demo Scenario Models
+# ==========================================
+class DemoStep(BaseModel):
+    step_number: int
+    title: str
+    description: str
+    artifact_summary: str
+    status: str
+
+class DemoScenarioResponse(BaseModel):
+    scenario_name: str
+    steps: List[DemoStep]
+    final_trust_score: int
+    deployment_url: str

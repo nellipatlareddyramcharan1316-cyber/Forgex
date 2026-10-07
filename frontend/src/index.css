@@ -504,3 +504,88 @@ body {
 .pipeline-connector.done {
   background: var(--accent-emerald);
 }
+
+/* Toast Notifications (Phase 23) */
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  background: rgba(13, 18, 31, 0.95);
+  border: 1px solid var(--accent-cyan);
+  box-shadow: 0 10px 40px rgba(56, 189, 248, 0.3);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.4rem;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  backdrop-filter: blur(16px);
+  animation: slideUpFade 0.25s ease-out;
+}
+
+/* Stepper (Phase 30 Killer Demo) */
+.demo-stepper-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.demo-step-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.9rem 1.2rem;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
+  transition: all 0.2s ease;
+}
+
+.demo-step-row.step-passed {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.demo-step-row.step-current {
+  border-color: var(--accent-cyan);
+  background: rgba(56, 189, 248, 0.08);
+  box-shadow: var(--glow-cyan);
+}
+
+.demo-step-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.82rem;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.step-passed .demo-step-badge {
+  background: var(--accent-emerald);
+  color: #000;
+}
+
+.step-current .demo-step-badge {
+  background: var(--accent-cyan);
+  color: #000;
+}
+

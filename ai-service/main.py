@@ -10,13 +10,19 @@ from models import (
     CodeReviewRequest, CodeReviewResponse,
     SecurityScanRequest, SecurityScanResponse,
     TrustScoreRequest, TrustScoreResponse,
-    MonitoringMetricsResponse
+    MonitoringMetricsResponse,
+    PMAnalysisRequest, PMAnalysisResponse,
+    ProjectHealthResponse,
+    NotificationListResponse,
+    AdminMetricsResponse,
+    PromptSanitizeRequest, PromptSanitizeResponse,
+    DemoScenarioResponse
 )
 import services
 
 app = FastAPI(
     title="ForgeX AI Engine & DevSecOps Intelligence Service",
-    description="Agentic Software Engineering microservice powering requirements analysis, RAG code intelligence, Dev Planner, Automated Test Generation, AI Code Review, DevSecOps Security Scanning, and AI Trust Score Governance.",
+    description="Agentic Software Engineering microservice powering requirements analysis, RAG code intelligence, Dev Planner, Automated Test Generation, AI Code Review, DevSecOps Security Scanning, AI Trust Score, AI Project Manager, Analytics, and 17-Step Demo Walkthrough.",
     version="2.0.0"
 )
 
@@ -45,7 +51,13 @@ def health_check():
             "PHASE_14_AI_CODE_REVIEW_AGENT",
             "PHASE_15_SECURITY_SCANNER",
             "PHASE_16_AI_TRUST_SCORE",
-            "PHASE_20_PRODUCTION_MONITORING"
+            "PHASE_20_PRODUCTION_MONITORING",
+            "PHASE_21_AI_PROJECT_MANAGER",
+            "PHASE_22_PROJECT_ANALYTICS",
+            "PHASE_23_NOTIFICATIONS",
+            "PHASE_24_ADMIN_PANEL",
+            "PHASE_26_PROMPT_INJECTION_DEFENSE",
+            "PHASE_30_KILLER_DEMO_RUNNER"
         ]
     }
 
@@ -98,6 +110,36 @@ def api_trust_score(req: TrustScoreRequest):
 @app.get("/api/ai/monitoring", response_model=MonitoringMetricsResponse)
 def api_monitoring():
     return services.get_production_monitoring()
+
+# Phase 21: AI Project Manager ⭐
+@app.post("/api/ai/pm/analyze", response_model=PMAnalysisResponse)
+def api_pm_analyze(req: PMAnalysisRequest):
+    return services.analyze_project_management(req)
+
+# Phase 22: Analytics Dashboard & Health
+@app.get("/api/ai/analytics/health", response_model=ProjectHealthResponse)
+def api_analytics_health():
+    return services.get_project_health()
+
+# Phase 23: Notification Center
+@app.get("/api/ai/notifications", response_model=NotificationListResponse)
+def api_notifications():
+    return services.get_notifications()
+
+# Phase 24: Admin Panel Metrics
+@app.get("/api/ai/admin/metrics", response_model=AdminMetricsResponse)
+def api_admin_metrics():
+    return services.get_admin_metrics()
+
+# Phase 26: Security Hardening & Prompt Injection Defense
+@app.post("/api/ai/security/sanitize-prompt", response_model=PromptSanitizeResponse)
+def api_sanitize_prompt(req: PromptSanitizeRequest):
+    return services.sanitize_prompt_security(req)
+
+# Phase 30: Final Killer Demo Scenario (17-Step Walkthrough)
+@app.post("/api/ai/demo/execute-scenario", response_model=DemoScenarioResponse)
+def api_demo_scenario():
+    return services.execute_killer_demo_scenario()
 
 if __name__ == "__main__":
     import uvicorn

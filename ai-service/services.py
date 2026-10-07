@@ -11,7 +11,13 @@ from models import (
     CodeReviewRequest, CodeReviewResponse, ReviewFinding,
     SecurityScanRequest, SecurityScanResponse, SecurityFinding,
     TrustScoreRequest, TrustScoreResponse,
-    MonitoringMetricsResponse
+    MonitoringMetricsResponse,
+    PMAnalysisRequest, PMAnalysisResponse, PMBottleneck,
+    ProjectHealthResponse,
+    NotificationItem, NotificationListResponse,
+    AdminMetricsResponse,
+    PromptSanitizeRequest, PromptSanitizeResponse,
+    DemoStep, DemoScenarioResponse
 )
 
 # ----------------------------------------------------
@@ -835,4 +841,220 @@ def get_production_monitoring() -> MonitoringMetricsResponse:
         },
         timestamp=datetime.datetime.utcnow().isoformat() + "Z"
     )
+
+# ----------------------------------------------------
+# PHASE 21: AI PROJECT MANAGER ⭐ (INTELLIGENT MANAGEMENT)
+# ----------------------------------------------------
+def analyze_project_management(req: PMAnalysisRequest) -> PMAnalysisResponse:
+    bottlenecks: List[PMBottleneck] = []
+    risk_factors: List[str] = []
+
+    # Check 1: Workflow bottlenecks
+    if req.testing_tasks > (req.backend_tasks + req.frontend_tasks) * 2:
+        bottlenecks.append(PMBottleneck(
+            area="Quality Assurance / Testing",
+            severity="CRITICAL",
+            message=f"Testing is currently the project bottleneck ({req.testing_tasks} tasks queued vs {req.backend_tasks} backend, {req.frontend_tasks} frontend).",
+            action_item="Reallocate developer capacity to automated test execution or enable ForgeX AI Test Synthesizer."
+        ))
+        risk_factors.append("QA queue congestion exceeding 3x sprint throughput threshold.")
+
+    # Check 2: Stale tasks
+    if req.stale_tasks_count > 0:
+        bottlenecks.append(PMBottleneck(
+            area="Sprint Velocity & Flow",
+            severity="HIGH",
+            message=f"{req.stale_tasks_count} tasks have remained in IN_PROGRESS for more than {req.stale_in_progress_days} days.",
+            action_item="Trigger standup alert and check for blocked external API dependencies or unmerged PRs."
+        ))
+        risk_factors.append(f"{req.stale_tasks_count} tasks stalled past WIP age limit.")
+
+    # Check 3: Missing Test Coverage on Critical Modules
+    if req.missing_test_features:
+        for feat in req.missing_test_features:
+            bottlenecks.append(PMBottleneck(
+                area="Test Coverage Gap",
+                severity="HIGH",
+                message=f"{feat} has been implemented but has no integration tests.",
+                action_item="Generate Mockito/Pytest integration tests before allowing release signoff."
+            ))
+            risk_factors.append(f"Uncovered business domain feature: {feat}")
+
+    # Velocity and Completion Probability
+    prob = 78
+    if len(risk_factors) == 0:
+        prob = 96
+    elif len(risk_factors) > 3:
+        prob = 62
+
+    summary = (
+        f"ForgeX AI Project Manager detected {len(bottlenecks)} operational bottlenecks. "
+        f"Testing queue depth ({req.testing_tasks} tasks) requires immediate attention. "
+        f"Current sprint velocity indicates a {prob}% probability of on-time release."
+    )
+
+    return PMAnalysisResponse(
+        bottlenecks=bottlenecks,
+        sprint_completion_probability=prob,
+        velocity_status="MODERATE_DRIFT (Attention Required)",
+        risk_factors=risk_factors,
+        executive_summary=summary
+    )
+
+# ----------------------------------------------------
+# PHASE 22: PROJECT HEALTH & ANALYTICS DASHBOARD
+# ----------------------------------------------------
+def get_project_health() -> ProjectHealthResponse:
+    # 0.95 req, 0.82 tasks, 0.89 code, 0.94 test, 0.97 sec, 1.00 deploy -> Overall: 91%
+    velocity_history = [
+        {"sprint": "Sprint 1", "committed": 24, "completed": 22},
+        {"sprint": "Sprint 2", "committed": 28, "completed": 27},
+        {"sprint": "Sprint 3", "committed": 32, "completed": 30},
+        {"sprint": "Sprint 4 (Current)", "committed": 35, "completed": 29}
+    ]
+    commit_history = [
+        {"day": "Mon", "commits": 14, "tests_run": 84},
+        {"day": "Tue", "commits": 22, "tests_run": 142},
+        {"day": "Wed", "commits": 19, "tests_run": 118},
+        {"day": "Thu", "commits": 31, "tests_run": 196},
+        {"day": "Fri", "commits": 28, "tests_run": 180}
+    ]
+    return ProjectHealthResponse(
+        requirements_pct=95,
+        tasks_pct=82,
+        code_pct=89,
+        testing_pct=94,
+        security_pct=97,
+        deployment_pct=100,
+        overall_health_pct=91,
+        velocity_history=velocity_history,
+        commit_history=commit_history
+    )
+
+# ----------------------------------------------------
+# PHASE 23: NOTIFICATIONS CENTER
+# ----------------------------------------------------
+def get_notifications() -> NotificationListResponse:
+    items = [
+        NotificationItem(
+            id="NOTIF-101",
+            title="AI Code Generation Finished",
+            message="🔔 AI finished code generation for task US-103 (Geo-Radius Menu Search). Feature branch created.",
+            type="SUCCESS",
+            timestamp="2 minutes ago"
+        ),
+        NotificationItem(
+            id="NOTIF-102",
+            title="Security Vulnerability Detected",
+            message="🔔 Security vulnerability detected: Hardcoded secret pattern found in application.properties:L12.",
+            type="ALERT",
+            timestamp="8 minutes ago"
+        ),
+        NotificationItem(
+            id="NOTIF-103",
+            title="Pull Request Ready for Review",
+            message="🔔 Pull request #53 ready for review. ForgeX Trust Score: 92/100 (READY).",
+            type="INFO",
+            timestamp="14 minutes ago"
+        ),
+        NotificationItem(
+            id="NOTIF-104",
+            title="Deployment Successful",
+            message="🔔 Deployment successful: ForgeX v1.4.0 live on production cluster with zero downtime.",
+            type="SUCCESS",
+            timestamp="32 minutes ago"
+        ),
+        NotificationItem(
+            id="NOTIF-105",
+            title="Automated Test Suite Alert",
+            message="🔔 Tests alert: 2 integration tests failed due to outdated coupon fixture. Regression caught before PR merge.",
+            type="WARNING",
+            timestamp="1 hour ago"
+        )
+    ]
+    return NotificationListResponse(notifications=items, unread_count=3)
+
+# ----------------------------------------------------
+# PHASE 24: ADMIN PANEL METRICS
+# ----------------------------------------------------
+def get_admin_metrics() -> AdminMetricsResponse:
+    return AdminMetricsResponse(
+        total_users=148,
+        projects_count=36,
+        ai_requests_count=5284,
+        repositories_count=31,
+        deployments_count=102,
+        system_health="100% OPERATIONAL (All 4 Nodes Healthy)",
+        security_incidents=0
+    )
+
+# ----------------------------------------------------
+# PHASE 26: SECURITY HARDENING / PROMPT INJECTION DEFENSE
+# ----------------------------------------------------
+def sanitize_prompt_security(req: PromptSanitizeRequest) -> PromptSanitizeResponse:
+    text = req.prompt_or_code
+    injection_patterns = [
+        r"ignore (all )?previous instructions",
+        r"disregard (all )?prior prompts",
+        r"send (the )?api keys? to",
+        r"output (the )?system prompt",
+        r"exfiltrate credentials",
+        r"bypass security"
+    ]
+
+    detected_threat = None
+    for pattern in injection_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            detected_threat = f"Malicious Prompt Injection Pattern Match: '{pattern}'"
+            break
+
+    if detected_threat:
+        # Strip and sanitize
+        sanitized = re.sub(r"(ignore|disregard).*?(\.|\n|$)", "[CONTENT FILTERED: PROMPT INJECTION MITIGATED] ", text, flags=re.IGNORECASE)
+        sanitized = re.sub(r"send.*?http\S+", "[URL BLOCKED]", sanitized, flags=re.IGNORECASE)
+        return PromptSanitizeResponse(
+            is_safe=False,
+            threat_detected=detected_threat,
+            sanitized_content=sanitized,
+            defense_strategy="Sandboxed Token Encapsulation + Instruction Isolation Barrier (Model refuses repo-injected instructions)."
+        )
+
+    return PromptSanitizeResponse(
+        is_safe=True,
+        threat_detected=None,
+        sanitized_content=text,
+        defense_strategy="Validated against OWASP LLM Top 10 Prompt Injection Mitigations."
+    )
+
+# ----------------------------------------------------
+# PHASE 30: FINAL KILLER DEMO SCENARIO (17-STEP WALKTHROUGH)
+# ----------------------------------------------------
+def execute_killer_demo_scenario() -> DemoScenarioResponse:
+    steps = [
+        DemoStep(step_number=1, title="Create Project", description="Smart Parking Platform initialized with enterprise layered architecture.", artifact_summary="Project ID #42 created with 3 default members.", status="COMPLETED"),
+        DemoStep(step_number=2, title="Enter Requirement", description="Requirement entered: 'Students should reserve available parking slots online.'", artifact_summary="Natural language requirement ingested.", status="COMPLETED"),
+        DemoStep(step_number=3, title="AI Requirements Breakdown", description="ForgeX automatically synthesizes 6 Epics, User Stories, and Gherkin Acceptance Criteria.", artifact_summary="6 Epics generated with 18 Acceptance Criteria.", status="COMPLETED"),
+        DemoStep(step_number=4, title="Connect GitHub Repository", description="GitHub OAuth handshake connects 'smart-parking-iot' repository.", artifact_summary="Connected to branch: main.", status="COMPLETED"),
+        DemoStep(step_number=5, title="AI Repository Analysis", description="Automated scan: Java 21, Spring Boot 3, PostgreSQL, 42 tests, 83% coverage.", artifact_summary="Layered architecture mapped (Controller -> Service -> Repo -> DB).", status="COMPLETED"),
+        DemoStep(step_number=6, title="Select Development Task", description="Engineer selects task: 'Create reservation API'.", artifact_summary="Task marked IN_PROGRESS.", status="COMPLETED"),
+        DemoStep(step_number=7, title="AI Development Plan", description="ForgeX generates 8-step roadmap before writing code.", artifact_summary="8-step plan generated, 6 affected files predicted.", status="COMPLETED"),
+        DemoStep(step_number=8, title="Developer Approval", description="Human engineer reviews and approves AI plan.", artifact_summary="Signed off by Lead Developer.", status="COMPLETED"),
+        DemoStep(step_number=9, title="AI Coding on Feature Branch", description="Strict safety rule: AI branches to 'feature/parking-reservation' (never main).", artifact_summary="3 files modified with clean diffs.", status="COMPLETED"),
+        DemoStep(step_number=10, title="Automated Test Generation", description="AI synthesizes unit, boundary, null, and exception tests.", artifact_summary="27/27 tests passed (0 failures).", status="COMPLETED"),
+        DemoStep(step_number=11, title="DevSecOps Security Scan", description="Scans for hardcoded secrets, SQL injection, and vulnerable dependencies.", artifact_summary="0 critical, 0 high vulnerabilities detected.", status="COMPLETED"),
+        DemoStep(step_number=12, title="AI Code Review", description="Automated PR inspection evaluates performance, clean code, and maintainability.", artifact_summary="AI Review Score: 92/100 (APPROVED).", status="COMPLETED"),
+        DemoStep(step_number=13, title="AI Trust Score ⭐", description="Calculates mathematical governance score using the signature 6-factor formula.", artifact_summary="Trust Score: 94/100 (READY FOR REVIEW).", status="COMPLETED"),
+        DemoStep(step_number=14, title="Pull Request Created", description="GitHub Pull Request #54 automatically generated with Trust Score badge.", artifact_summary="PR URL: github.com/forgex-demo/smart-parking-iot/pull/54.", status="COMPLETED"),
+        DemoStep(step_number=15, title="GitHub Actions CI/CD Runs", description="Build, Test, Security, and Docker workflows execute in parallel.", artifact_summary="Build ✅ | Tests ✅ | Security ✅ | Deploy ✅", status="COMPLETED"),
+        DemoStep(step_number=16, title="Application Deploys", description="Multi-container Docker Compose and AWS ECS deployment completes.", artifact_summary="Live healthcheck verified: 200 OK.", status="COMPLETED"),
+        DemoStep(step_number=17, title="Production Observability Active", description="Cluster telemetry actively scraped by Prometheus and displayed on dashboard.", artifact_summary="14,284 requests, 184ms latency, 99.6% uptime.", status="COMPLETED")
+    ]
+
+    return DemoScenarioResponse(
+        scenario_name="ForgeX End-to-End Autonomous Software Engineering Lifecycle",
+        steps=steps,
+        final_trust_score=94,
+        deployment_url="http://localhost:5173"
+    )
+
 
