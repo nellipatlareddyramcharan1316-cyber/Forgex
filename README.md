@@ -19,14 +19,14 @@ ForgeX is an evolving AI-native software engineering platform. The table below t
 
 | Capability | Current Status | Verification & Notes |
 |---|---|---|
-| **React Dashboard & UI** | Implemented Prototype | Interactive multi-view console, modular components |
-| **Spring Boot Core API** | Implemented & Secured | JPA persistence, secured endpoints, authenticated routes |
+| **React Dashboard & UI** | Implemented & Connected | Interactive multi-view console, modular components, authenticated API headers |
+| **Spring Boot Core API** | Implemented & Secured | JPA persistence, secured endpoints, JWT RBAC, project-level access control |
 | **Authentication & RBAC** | Hardened | Role escalation prevented; default `ROLE_DEVELOPER`, externalized secrets |
-| **GitHub Integration** | Prototyped (Demo Mode) | OAuth flow & branch workflow simulator; live GitHub API integration in progress |
-| **Requirement Analyzer** | Rule-Based Prototype | Structured schema decomposition; LLM integration in roadmap |
-| **RAG Repository Search** | Prototyped | Code chunk retrieval; pgvector embedding pipeline in development |
-| **Autonomous Coding Agent**| Prototyped / Demo Mode | Branch isolation enforced; live patch synthesis in roadmap |
-| **Automated Test Generator**| Prototyped | Structured test suite synthesis across 6 test categories |
+| **GitHub Integration** | Live REST API Client | Spring `RestClient` with OAuth, repo stats, PR/issue creation; live/simulation tagging |
+| **Requirement Analyzer** | Live LLM Integration | Structured JSON decomposition via OpenAI/Gemini with robust deterministic fallback |
+| **RAG Repository Search** | Implemented & Vector-Indexed | Repository traversal, syntax chunking, 384-dim dense embeddings & pgvector PostgreSQL index |
+| **Autonomous Coding Agent**| Governed & Tested | Branch isolation (`feature/*`), local Maven/Pytest test runner gate, human PR review gate |
+| **Automated Test Generator**| Prototyped & Verified | Structured test suite synthesis across 6 test categories |
 | **DevSecOps Security Scan**| Active Sentinel | Real pattern matching, secret detection, and dependency checks |
 | **AI Change Trust Score** | Active Governance Gate | Mathematical formula with hard safety blockers for security regression |
 | **CI/CD Workflows** | Active Workflows | GitHub Actions for Maven compile/test, Pytest, Docker build, and SAST |

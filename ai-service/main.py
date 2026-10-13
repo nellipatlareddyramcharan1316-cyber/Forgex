@@ -3,9 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from models import (
     RequirementRequest, RequirementAnalysisResponse,
     RAGQueryRequest, RAGQueryResponse,
+    RepoIngestRequest, RepoIngestResponse, PGVectorDDLResponse,
     RepoAnalyzeRequest, RepoAnalysisResponse,
     DevPlanRequest, DevPlanResponse,
     CodeAgentExecuteRequest, CodeAgentExecuteResponse,
+    CodeAgentApproveRequest, CodeAgentApproveResponse,
     TestGenRequest, TestGenResponse,
     CodeReviewRequest, CodeReviewResponse,
     SecurityScanRequest, SecurityScanResponse,
@@ -66,10 +68,22 @@ def health_check():
 def api_analyze_requirement(req: RequirementRequest):
     return services.analyze_requirement(req)
 
-# Phase 9: RAG / Project Knowledge
+# Phase 9: RAG / Project Knowledge & pgvector
 @app.post("/api/ai/rag/query", response_model=RAGQueryResponse)
 def api_rag_query(req: RAGQueryRequest):
     return services.query_project_rag(req)
+
+@app.post("/api/ai/rag/ingest", response_model=RepoIngestResponse)
+def api_rag_ingest(req: RepoIngestRequest):
+    return services.ingest_repository(req)
+
+@app.get("/api/ai/rag/pgvector-schema", response_model=PGVectorDDLResponse)
+def api_rag_pgvector_schema():
+    return services.get_pgvector_ddl()
+
+@app.get("/api/ai/rag/stats")
+def api_rag_stats():
+    return services.get_rag_stats()
 
 # Phase 10: AI Repository Analyzer
 @app.post("/api/ai/repo/analyze", response_model=RepoAnalysisResponse)
@@ -85,6 +99,10 @@ def api_dev_planner(req: DevPlanRequest):
 @app.post("/api/ai/code-agent/execute", response_model=CodeAgentExecuteResponse)
 def api_coding_agent(req: CodeAgentExecuteRequest):
     return services.execute_coding_agent(req)
+
+@app.post("/api/ai/code-agent/approve", response_model=CodeAgentApproveResponse)
+def api_coding_agent_approve(req: CodeAgentApproveRequest):
+    return services.approve_coding_agent_pr(req)
 
 # Phase 13: Automated Test Generation
 @app.post("/api/ai/test-generator", response_model=TestGenResponse)

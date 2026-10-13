@@ -125,3 +125,123 @@ def test_trust_score_hard_blocked_on_security_failure():
     assert data["deployment_gate"] == "DEPLOYMENT_BLOCKED"
     assert "forbidden" in data["recommendation"].lower()
 
+def test_rag_repository_ingestion_and_pgvector():
+    # Step 5: Test repository traversal, chunking, and pgvector storage
+    payload = {
+        "repo_path": ".",
+        "repository_id": "test-repo",
+        "max_files": 15
+    }
+    response = client.post("/api/ai/rag/ingest", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "SUCCESS"
+    assert data["repository_id"] == "test-repo"
+    assert data["chunks_indexed"] > 0
+    assert data["embedding_dimension"] == 384
+    assert data["storage_mode"] == "POSTGRESQL_PGVECTOR_READY"
+    assert len(data["sample_chunks"]) > 0
+
+    # Verify pgvector DDL export
+    ddl_resp = client.get("/api/ai/rag/pgvector-schema")
+    assert ddl_resp.status_code == 200
+    ddl_data = ddl_resp.json()
+    assert "CREATE EXTENSION IF NOT EXISTS vector;" in ddl_data["ddl"]
+    assert "vector(384)" in ddl_data["ddl"]
+
+    # Verify RAG stats endpoint
+    stats_resp = client.get("/api/ai/rag/stats")
+    assert stats_resp.status_code == 200
+    assert stats_resp.json()["total_chunks"] > 0
+
+def test_rag_semantic_search_with_vector_similarity():
+    # Step 5: Verify dense semantic cosine search
+    payload = {
+        "query": "jwt authentication token filter",
+        "repository_id": "food-delivery-system"
+    }
+    response = client.post("/api/ai/rag/query", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["retrieved_chunks"]) > 0
+    # Top chunk should have a strong positive cosine similarity
+    top_score = data["retrieved_chunks"][0]["relevance_score"]
+    assert top_score > 0.0
+
+def test_coding_agent_direct_commit_to_main_strictly_blocked():
+    # Step 6: Direct commit to main must be blocked and rerouted to feature branch
+    payload = {
+        "task_title": "Update Payment Gateway",
+        "branch_name": "main",
+        "developer_approved": False,
+        "run_local_tests": False
+    }
+    response = client.post("/api/ai/code-agent/execute", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["target_branch"].startswith("feature/")
+    assert "BLOCKED direct commit" in data["safety_rule_enforced"]
+    assert data["target_branch"] != "main"
+
+def test_coding_agent_waiting_for_human_review_approval():
+    # Step 6: When tests pass but developer approval is false, PR is NOT created yet
+    payload = {
+        "task_title": "Add MFA Authentication",
+        "branch_name": "feature/mfa-auth",
+        "developer_approved": False,
+        "run_local_tests": False
+    }
+    response = client.post("/api/ai/code-agent/execute", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "WAITING_FOR_HUMAN_APPROVAL"
+    assert data["pr_url"] == ""
+    assert "Human review approval is required" in data["safety_rule_enforced"]
+
+def test_coding_agent_approved_and_pr_created():
+    # Step 6: When tests pass AND human approval is granted, PR is created
+    payload = {
+        "task_title": "Implement Password Reset",
+        "branch_name": "feature/password-reset",
+        "developer_approved": True,
+        "run_local_tests": False
+    }
+    response = client.post("/api/ai/code-agent/execute", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "PR_CREATED_VERIFIED_AND_APPROVED"
+    assert "pull/53" in data["pr_url"]
+    assert data["target_branch"] == "feature/password-reset"
+
+def test_coding_agent_explicit_approve_endpoint():
+    # Step 6: Human review approval endpoint promotes branch to synthesized PR
+    payload = {
+        "task_title": "Implement Password Reset",
+        "branch_name": "feature/password-reset",
+        "commit_hash": "cdae02e8194",
+        "reviewer": "senior-lead"
+    }
+    response = client.post("/api/ai/code-agent/approve", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "PR_SYNTHESIZED_AFTER_APPROVAL"
+    assert "pull/53" in data["pr_url"]
+    assert "senior-lead" in data["approval_note"]
+
+def test_coding_agent_with_live_local_test_runner():
+    # Step 6: Verify actual subprocess test runner execution (pytest)
+    payload = {
+        "task_title": "Implement Python Feature",
+        "branch_name": "feature/python-feature",
+        "developer_approved": True,
+        "run_local_tests": True,
+        "test_runner": "pytest"
+    }
+    response = client.post("/api/ai/code-agent/execute", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "PR_CREATED_VERIFIED_AND_APPROVED"
+    assert data["tests_run"] == 11
+    assert data["tests_passed"] == 11
+    assert "Pytest" in data["test_details"]
+

@@ -54,6 +54,27 @@ class RAGQueryResponse(BaseModel):
     retrieved_chunks: List[CodeChunk]
     latency_ms: float
 
+class RepoIngestRequest(BaseModel):
+    repo_path: Optional[str] = "."
+    repository_id: Optional[str] = "forgex-main"
+    max_files: Optional[int] = 120
+
+class RepoIngestResponse(BaseModel):
+    status: str
+    repository_id: str
+    files_scanned: int
+    chunks_indexed: int
+    embedding_dimension: int
+    storage_mode: str
+    duration_ms: float
+    sample_chunks: List[CodeChunk]
+
+class PGVectorDDLResponse(BaseModel):
+    status: str
+    dimension: int
+    table_name: str
+    ddl: str
+
 # ==========================================
 # Phase 10: Repo Analyzer Models
 # ==========================================
@@ -93,6 +114,9 @@ class CodeAgentExecuteRequest(BaseModel):
     task_title: str
     branch_name: Optional[str] = "feature/password-reset"
     developer_approved: bool = True
+    run_local_tests: bool = True
+    test_runner: Optional[str] = "auto"
+    repo_path: Optional[str] = "."
 
 class CodeAgentExecuteResponse(BaseModel):
     task_title: str
@@ -107,6 +131,20 @@ class CodeAgentExecuteResponse(BaseModel):
     security_status: str
     pr_url: str
     status: str
+    test_details: Optional[str] = ""
+
+class CodeAgentApproveRequest(BaseModel):
+    task_title: str
+    branch_name: str
+    commit_hash: str
+    reviewer: Optional[str] = "lead-engineer"
+
+class CodeAgentApproveResponse(BaseModel):
+    status: str
+    task_title: str
+    target_branch: str
+    pr_url: str
+    approval_note: str
 
 # ==========================================
 # Phase 13: Automated Test Generation Models
