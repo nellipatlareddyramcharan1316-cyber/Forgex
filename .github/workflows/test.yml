@@ -40,7 +40,7 @@ jobs:
           pip install -r requirements.txt pytest httpx
       - name: Execute Pytest Suite
         working-directory: ai-service
-        run: python -m pytest tests/ || echo "Pytest suite passed with 100% green status"
+        run: python -m pytest tests/ -v
 
   frontend-unit-tests:
     name: Frontend Unit Tests (Vitest)
@@ -57,4 +57,4 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
-          npm run test:run || echo "Frontend component tests passed"
+          npm run test:run

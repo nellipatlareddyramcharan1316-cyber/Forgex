@@ -1,7 +1,6 @@
 package com.forgex.model;
 
 import java.time.Instant;
-import java.util.List;
 
 public class Project {
     private String id;

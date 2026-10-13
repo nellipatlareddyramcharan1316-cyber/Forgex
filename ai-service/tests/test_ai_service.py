@@ -107,3 +107,21 @@ def test_killer_demo_scenario():
     data = response.json()
     assert len(data["steps"]) == 17
     assert data["final_trust_score"] == 94
+
+def test_trust_score_hard_blocked_on_security_failure():
+    # Even if tests and coverage are 100%, severe security vulnerability MUST block deployment
+    payload = {
+        "requirement_coverage": 100.0,
+        "test_coverage": 100.0,
+        "security_score": 10.0, # Severe security finding!
+        "code_quality_score": 90.0,
+        "dependency_risk_score": 90.0,
+        "ai_review_score": 90.0
+    }
+    response = client.post("/api/ai/trust-score", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status_band"] == "BLOCKED"
+    assert data["deployment_gate"] == "DEPLOYMENT_BLOCKED"
+    assert "forbidden" in data["recommendation"].lower()
+

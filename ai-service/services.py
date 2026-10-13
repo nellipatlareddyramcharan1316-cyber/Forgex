@@ -1,6 +1,9 @@
+import os
+import json
 import re
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+import httpx
 from models import (
     RequirementRequest, RequirementAnalysisResponse, ArchitectureProposal, Epic, UserStory,
     RAGQueryRequest, RAGQueryResponse, CodeChunk,
@@ -21,9 +24,77 @@ from models import (
 )
 
 # ----------------------------------------------------
+# LIVE LLM REQUIREMENT DECOMPOSITION (STEP 4)
+# ----------------------------------------------------
+def _generate_requirements_via_llm(requirement_text: str) -> Optional[RequirementAnalysisResponse]:
+    openai_key = os.getenv("OPENAI_API_KEY")
+    gemini_key = os.getenv("GEMINI_API_KEY")
+
+    if openai_key:
+        try:
+            prompt = f"""You are an elite enterprise software architect. Decompose the following software requirement into a full architecture proposal, epics, user stories, and acceptance criteria.
+Requirement: {requirement_text}
+
+Return a valid JSON object matching this schema:
+{{
+  "project_name": "Project Name",
+  "architecture": {{
+    "overview": "Architectural overview text",
+    "suggested_stack": {{"Backend": "Java 21 Spring Boot 3", "Database": "PostgreSQL 16", "Frontend": "React + TypeScript"}},
+    "key_entities": ["Entity1", "Entity2"],
+    "api_endpoints": ["POST /api/v1/auth/login", "GET /api/v1/data"]
+  }},
+  "epics": [
+    {{
+      "epic_name": "Epic 1: Authentication & Access",
+      "description": "Secure access and permissions",
+      "user_stories": [
+        {{
+          "story_key": "US-101",
+          "title": "User Authentication",
+          "description": "Implement authentication workflow",
+          "acceptance_criteria": ["✓ Valid credentials succeed", "✓ Returns signed JWT"],
+          "estimated_points": 3
+        }}
+      ]
+    }}
+  ]
+}}"""
+            with httpx.Client(timeout=15.0) as client:
+                res = client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": "gpt-4o-mini",
+                        "response_format": {"type": "json_object"},
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.2
+                    }
+                )
+                if res.status_code == 200:
+                    payload = json.loads(res.json()["choices"][0]["message"]["content"])
+                    arch = ArchitectureProposal(**payload["architecture"])
+                    epics = [Epic(**e) for e in payload["epics"]]
+                    return RequirementAnalysisResponse(
+                        status="SUCCESS",
+                        project_name=payload.get("project_name", "AI Decomposed Project"),
+                        architecture=arch,
+                        epics=epics,
+                        total_stories=sum(len(e.user_stories) for e in epics)
+                    )
+        except Exception:
+            pass
+    return None
+
+# ----------------------------------------------------
 # PHASE 8: AI REQUIREMENT ANALYZER
 # ----------------------------------------------------
 def analyze_requirement(req: RequirementRequest) -> RequirementAnalysisResponse:
+    # 1. Attempt live LLM decomposition if an external provider key is active
+    llm_result = _generate_requirements_via_llm(req.requirement_text)
+    if llm_result:
+        return llm_result
+
     text = req.requirement_text.lower()
     
     # Parking System (Specified in Phase 8)
@@ -787,7 +858,14 @@ def calculate_trust_score(req: TrustScoreRequest) -> TrustScoreResponse:
     )
     score_rounded = round(score, 1)
 
-    if score_rounded >= 90.0:
+    # Hard Safety Gate: Security score < 50 or test coverage < 50 immediately blocks deployment
+    hard_blocked = req.security_score < 50.0 or req.test_coverage < 50.0
+
+    if hard_blocked or score_rounded < 50.0:
+        band = "BLOCKED"
+        gate = "DEPLOYMENT_BLOCKED"
+        recommendation = "Critical security vulnerability or severe test regression detected. Deployment forbidden."
+    elif score_rounded >= 90.0:
         band = "READY"
         gate = "DEPLOYMENT_APPROVED"
         recommendation = "Exceptional quality & governance. Pull request is verified and ready for production deployment."
@@ -795,14 +873,10 @@ def calculate_trust_score(req: TrustScoreRequest) -> TrustScoreResponse:
         band = "REVIEW"
         gate = "PEER_REVIEW_REQUIRED"
         recommendation = "Solid foundation. Minor performance or dependency warnings require lead developer sign-off."
-    elif score_rounded >= 50.0:
+    else:
         band = "CAUTION"
         gate = "ADDITIONAL_TESTS_REQUIRED"
         recommendation = "Multiple test gaps or security advisories identified. Resolve before staging deployment."
-    else:
-        band = "BLOCKED"
-        gate = "DEPLOYMENT_BLOCKED"
-        recommendation = "Critical security vulnerability or severe test regression detected. Deployment forbidden."
 
     breakdown = {
         "requirement_coverage": req.requirement_coverage,

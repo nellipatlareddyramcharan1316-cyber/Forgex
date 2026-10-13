@@ -36,7 +36,9 @@ public class AuthService {
             throw new IllegalArgumentException("Email is already registered: " + req.getEmail());
         }
 
-        Role assignedRole = Role.fromString(req.getRole());
+        // Security: Public registration always assigns ROLE_DEVELOPER.
+        // Administrative roles must be granted through authorized administration channels.
+        Role assignedRole = Role.ROLE_DEVELOPER;
         String encodedPassword = passwordEncoder.encode(req.getPassword());
 
         User user = new User(req.getName(), req.getEmail(), encodedPassword, assignedRole);

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
-// API Endpoints
-const BACKEND_URL = 'http://localhost:8080/api/v1';
-const AUTH_URL = 'http://localhost:8080/api/auth';
-const AI_SERVICE_URL = 'http://localhost:8000';
+// API Endpoints (Configurable via Vite env or fallback)
+const BACKEND_BASE = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:8080';
+const BACKEND_URL = `${BACKEND_BASE}/api/v1`;
+const AUTH_URL = `${BACKEND_BASE}/api/auth`;
+const AI_SERVICE_URL = (import.meta as any).env?.VITE_AI_SERVICE_URL || 'http://localhost:8000';
 
 type Page =
   | 'projects'
@@ -213,10 +214,21 @@ export default function App() {
     showToast(`📋 ${label} copied to clipboard!`);
   };
 
+  // Authorization Header helper
+  const getAuthHeaders = () => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (currentUser?.token && currentUser.token !== 'demo-token') {
+      headers['Authorization'] = `Bearer ${currentUser.token}`;
+    }
+    return headers;
+  };
+
   // Fetch Projects & Tasks
   const fetchProjects = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/projects`);
+      const res = await fetch(`${BACKEND_URL}/projects`, {
+        headers: getAuthHeaders()
+      });
       if (res.ok) {
         const data = await res.json();
         setProjects(data);
@@ -237,7 +249,9 @@ export default function App() {
 
   const fetchTasks = async (projectId: number) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/tasks/project/${projectId}`);
+      const res = await fetch(`${BACKEND_URL}/tasks/project/${projectId}`, {
+        headers: getAuthHeaders()
+      });
       if (res.ok) {
         const data = await res.json();
         setTasks(data);
@@ -256,7 +270,9 @@ export default function App() {
 
   const fetchMembers = async (projectId: number) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/projects/${projectId}/members`);
+      const res = await fetch(`${BACKEND_URL}/projects/${projectId}/members`, {
+        headers: getAuthHeaders()
+      });
       if (res.ok) {
         setProjectMembers(await res.json());
       }
@@ -323,16 +339,7 @@ export default function App() {
         setAuthError('Invalid email or password');
       }
     } catch {
-      const demoUser: UserProfile = {
-        token: 'demo-token',
-        id: 3,
-        name: 'Devon Lee',
-        email: authEmail,
-        role: 'ROLE_DEVELOPER'
-      };
-      setCurrentUser(demoUser);
-      localStorage.setItem('forgex_user', JSON.stringify(demoUser));
-      setCurrentPage('kanban');
+      setAuthError(`Connection error: Could not reach backend server at ${BACKEND_BASE}. Please verify the service is running.`);
     }
   };
 
@@ -346,7 +353,7 @@ export default function App() {
     try {
       await fetch(`${BACKEND_URL}/tasks/${taskId}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ status: newStatus })
       });
       setTasks(tasks.map(t => (t.id === taskId ? { ...t, status: newStatus } : t)));
@@ -357,7 +364,10 @@ export default function App() {
 
   const handleDeleteTask = async (taskId: number) => {
     try {
-      await fetch(`${BACKEND_URL}/tasks/${taskId}`, { method: 'DELETE' });
+      await fetch(`${BACKEND_URL}/tasks/${taskId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
       setTasks(tasks.filter(t => t.id !== taskId));
     } catch {
       setTasks(tasks.filter(t => t.id !== taskId));
@@ -372,7 +382,7 @@ export default function App() {
     try {
       const res = await fetch(`${BACKEND_URL}/tasks/project/${selectedProject.id}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           title: newTaskTitle,
           description: newTaskDesc,
@@ -415,7 +425,7 @@ export default function App() {
     try {
       const res = await fetch(`${BACKEND_URL}/projects/${selectedProject.id}/members`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ email: memberEmail, role: memberRole })
       });
       if (res.ok) {

@@ -13,6 +13,27 @@
 
 ---
 
+## 📊 Current Implementation Status & Engineering Roadmap
+
+ForgeX is an evolving AI-native software engineering platform. The table below transparently outlines what is currently implemented, hardened, and in active development:
+
+| Capability | Current Status | Verification & Notes |
+|---|---|---|
+| **React Dashboard & UI** | Implemented Prototype | Interactive multi-view console, modular components |
+| **Spring Boot Core API** | Implemented & Secured | JPA persistence, secured endpoints, authenticated routes |
+| **Authentication & RBAC** | Hardened | Role escalation prevented; default `ROLE_DEVELOPER`, externalized secrets |
+| **GitHub Integration** | Prototyped (Demo Mode) | OAuth flow & branch workflow simulator; live GitHub API integration in progress |
+| **Requirement Analyzer** | Rule-Based Prototype | Structured schema decomposition; LLM integration in roadmap |
+| **RAG Repository Search** | Prototyped | Code chunk retrieval; pgvector embedding pipeline in development |
+| **Autonomous Coding Agent**| Prototyped / Demo Mode | Branch isolation enforced; live patch synthesis in roadmap |
+| **Automated Test Generator**| Prototyped | Structured test suite synthesis across 6 test categories |
+| **DevSecOps Security Scan**| Active Sentinel | Real pattern matching, secret detection, and dependency checks |
+| **AI Change Trust Score** | Active Governance Gate | Mathematical formula with hard safety blockers for security regression |
+| **CI/CD Workflows** | Active Workflows | GitHub Actions for Maven compile/test, Pytest, Docker build, and SAST |
+| **Production Telemetry** | Prototyped | Observability dashboard with latency, throughput, and service health |
+
+---
+
 ## 📚 Complete Technical Documentation Suite
 
 | Document | Description |

@@ -6,8 +6,6 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-
 @Component
 public class DataInitializer implements CommandLineRunner {
 
@@ -54,7 +52,7 @@ public class DataInitializer implements CommandLineRunner {
         User admin = userRepository.save(new User("Alice Vance", "admin@forgex.io", passwordEncoder.encode("Password123!"), Role.ROLE_ADMIN));
         User pm = userRepository.save(new User("Marcus Brody", "pm@forgex.io", passwordEncoder.encode("Password123!"), Role.ROLE_PROJECT_MANAGER));
         User dev = userRepository.save(new User("Devon Lee", "dev@forgex.io", passwordEncoder.encode("Password123!"), Role.ROLE_DEVELOPER));
-        User viewer = userRepository.save(new User("Sara Connor", "viewer@forgex.io", passwordEncoder.encode("Password123!"), Role.ROLE_VIEWER));
+        userRepository.save(new User("Sara Connor", "viewer@forgex.io", passwordEncoder.encode("Password123!"), Role.ROLE_VIEWER));
 
         // 2. Seed Projects
         ProjectEntity foodDelivery = projectRepository.save(new ProjectEntity(
@@ -64,7 +62,7 @@ public class DataInitializer implements CommandLineRunner {
                 dev
         ));
 
-        ProjectEntity parkingSystem = projectRepository.save(new ProjectEntity(
+        projectRepository.save(new ProjectEntity(
                 "Parking System",
                 "IoT-integrated automated parking bay reservation system with concurrency control.",
                 "https://github.com/forgex-demo/smartpark",

@@ -4,7 +4,6 @@ import com.forgex.dto.AuthRequest;
 import com.forgex.dto.AuthResponse;
 import com.forgex.dto.RegisterRequest;
 import com.forgex.entity.Role;
-import com.forgex.entity.User;
 import com.forgex.model.TrustScoreResult;
 import com.forgex.repository.UserRepository;
 import com.forgex.security.JwtTokenProvider;
@@ -90,5 +89,18 @@ class ForgeXBackendApplicationTests {
         assertTrue(result.getOverallScore() <= 30);
         assertTrue(result.getVerdict().contains("BLOCKED"));
         assertFalse(result.isSafeToDeploy());
+    }
+
+    @Test
+    void testRoleEscalationPrevented_UserCannotRegisterAsAdmin() {
+        String testEmail = "hacker_" + System.currentTimeMillis() + "@forgex.io";
+        // Attacker attempts to request ADMIN role in public registration
+        RegisterRequest exploitReq = new RegisterRequest("Attacker", testEmail, "SecretPass123!", "ADMIN");
+        AuthResponse registered = authService.register(exploitReq);
+
+        assertNotNull(registered.getToken());
+        // Must strictly be assigned ROLE_DEVELOPER
+        assertEquals(Role.ROLE_DEVELOPER.name(), registered.getRole());
+        assertNotEquals("ROLE_ADMIN", registered.getRole());
     }
 }

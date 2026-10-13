@@ -18,17 +18,21 @@ spring:
         format_sql: true
   h2:
     console:
-      enabled: true
+      enabled: ${H2_CONSOLE_ENABLED:true}
       path: /h2-console
       settings:
-        web-allow-others: true
+        web-allow-others: ${H2_CONSOLE_ALLOW_OTHERS:false}
 
 forgex:
   jwt:
-    secret: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
-    expiration-ms: 86400000 # 24 hours
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours
   ai-service:
     url: ${FORGEX_AI_SERVICE_URL:http://localhost:8000}
+  github:
+    client-id: ${GITHUB_CLIENT_ID:}
+    client-secret: ${GITHUB_CLIENT_SECRET:}
+    token: ${GITHUB_TOKEN:}
 
 management:
   endpoints:

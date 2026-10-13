@@ -4,6 +4,7 @@ import com.forgex.entity.*;
 import com.forgex.repository.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -39,35 +40,49 @@ public class ProjectController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ProjectEntity> getProject(@PathVariable Long id) {
+    public ResponseEntity<ProjectEntity> getProject(@PathVariable @NonNull Long id) {
         return projectRepository.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping
-    public ResponseEntity<ProjectEntity> createProject(@RequestBody Map<String, String> payload, Authentication auth) {
+    public ResponseEntity<?> createProject(@RequestBody Map<String, String> payload, Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(401).body(Map.of("error", "Authentication required to create a project"));
+        }
+
+        User owner = userRepository.findByEmail(auth.getName()).orElse(null);
+        if (owner == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Authenticated user not found in database"));
+        }
+
         String name = payload.getOrDefault("name", "New Project");
         String description = payload.getOrDefault("description", "");
         String repoUrl = payload.getOrDefault("repositoryUrl", "https://github.com/forgex-demo/" + name.toLowerCase().replaceAll("\\s+", "-"));
-
-        User owner = null;
-        if (auth != null && auth.isAuthenticated()) {
-            owner = userRepository.findByEmail(auth.getName()).orElse(null);
-        }
-        if (owner == null) {
-            owner = userRepository.findAll().stream().findFirst().orElse(null);
-        }
 
         ProjectEntity project = new ProjectEntity(name, description, repoUrl, owner);
         ProjectEntity saved = projectRepository.save(project);
         return ResponseEntity.ok(saved);
     }
 
+    private boolean isOwnerOrAdmin(ProjectEntity project, Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) return false;
+        String email = auth.getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) return false;
+        if (currentUser.getRole() == Role.ROLE_ADMIN) return true;
+        return project.getOwner() != null && project.getOwner().getEmail().equalsIgnoreCase(email);
+    }
+
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateProject(@PathVariable Long id, @RequestBody Map<String, String> payload) {
+    public ResponseEntity<?> updateProject(@PathVariable @NonNull Long id, @RequestBody Map<String, String> payload, Authentication auth) {
         ProjectEntity project = projectRepository.findById(id).orElse(null);
         if (project == null) return ResponseEntity.notFound().build();
+
+        if (!isOwnerOrAdmin(project, auth)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied: only project owner or admin can modify project details"));
+        }
 
         if (payload.containsKey("name")) project.setName(payload.get("name"));
         if (payload.containsKey("description")) project.setDescription(payload.get("description"));
@@ -78,22 +93,32 @@ public class ProjectController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteProject(@PathVariable Long id) {
-        if (!projectRepository.existsById(id)) return ResponseEntity.notFound().build();
+    public ResponseEntity<?> deleteProject(@PathVariable @NonNull Long id, Authentication auth) {
+        ProjectEntity project = projectRepository.findById(id).orElse(null);
+        if (project == null) return ResponseEntity.notFound().build();
+
+        if (!isOwnerOrAdmin(project, auth)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied: only project owner or admin can delete this project"));
+        }
+
         projectRepository.deleteById(id);
         return ResponseEntity.ok(Map.of("message", "Project deleted successfully", "id", id));
     }
 
     // Members
     @GetMapping("/{id}/members")
-    public ResponseEntity<List<ProjectMember>> getProjectMembers(@PathVariable Long id) {
+    public ResponseEntity<List<ProjectMember>> getProjectMembers(@PathVariable @NonNull Long id) {
         return ResponseEntity.ok(memberRepository.findByProject_Id(id));
     }
 
     @PostMapping("/{id}/members")
-    public ResponseEntity<?> addProjectMember(@PathVariable Long id, @RequestBody Map<String, String> payload) {
+    public ResponseEntity<?> addProjectMember(@PathVariable @NonNull Long id, @RequestBody Map<String, String> payload, Authentication auth) {
         ProjectEntity project = projectRepository.findById(id).orElse(null);
         if (project == null) return ResponseEntity.notFound().build();
+
+        if (!isOwnerOrAdmin(project, auth)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied: only project owner or admin can manage project members"));
+        }
 
         String email = payload.get("email");
         String roleStr = payload.getOrDefault("role", "DEVELOPER");
@@ -108,12 +133,12 @@ public class ProjectController {
 
     // Requirements
     @GetMapping("/{id}/requirements")
-    public ResponseEntity<List<RequirementEntity>> getProjectRequirements(@PathVariable Long id) {
+    public ResponseEntity<List<RequirementEntity>> getProjectRequirements(@PathVariable @NonNull Long id) {
         return ResponseEntity.ok(requirementRepository.findByProject_Id(id));
     }
 
     @PostMapping("/{id}/requirements")
-    public ResponseEntity<?> createRequirement(@PathVariable Long id, @RequestBody Map<String, String> payload) {
+    public ResponseEntity<?> createRequirement(@PathVariable @NonNull Long id, @RequestBody Map<String, String> payload) {
         ProjectEntity project = projectRepository.findById(id).orElse(null);
         if (project == null) return ResponseEntity.notFound().build();
 
@@ -125,12 +150,12 @@ public class ProjectController {
 
     // Epics
     @GetMapping("/{id}/epics")
-    public ResponseEntity<List<EpicEntity>> getProjectEpics(@PathVariable Long id) {
+    public ResponseEntity<List<EpicEntity>> getProjectEpics(@PathVariable @NonNull Long id) {
         return ResponseEntity.ok(epicRepository.findByProject_Id(id));
     }
 
     @PostMapping("/{id}/epics")
-    public ResponseEntity<?> createEpic(@PathVariable Long id, @RequestBody Map<String, String> payload) {
+    public ResponseEntity<?> createEpic(@PathVariable @NonNull Long id, @RequestBody Map<String, String> payload) {
         ProjectEntity project = projectRepository.findById(id).orElse(null);
         if (project == null) return ResponseEntity.notFound().build();
 

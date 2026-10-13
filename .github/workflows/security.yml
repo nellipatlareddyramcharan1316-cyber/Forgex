@@ -20,8 +20,8 @@ jobs:
       - name: Secret Detection (TruffleHog / GitLeaks pattern match)
         run: |
           echo "Scanning codebase for hardcoded passwords, AWS keys, JWT secrets..."
-          # Mock / actual scan verification: ensure no unmasked secret patterns exist
-          grep -rn --exclude-dir={.git,node_modules,target} "password=forgex_secret_password" . || true
+          # Fail workflow if unmasked private keys or credentials are found
+          ! grep -rn --exclude-dir={.git,node_modules,target,dist} -E "(AKIA[0-9A-Z]{16}|-----BEGIN (RSA|EC|DSA|OPENSSH) PRIVATE KEY-----)" .
           echo "Secret detection passed: 0 active critical secret breaches."
 
       - name: Backend Dependency Vulnerability Check (OWASP / Maven Audit)
