@@ -14,7 +14,6 @@ import com.forgex.entity.Role;
 import com.forgex.repository.ProjectMemberRepository;
 import org.springframework.security.core.Authentication;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -38,6 +37,7 @@ public class TaskController {
         this.memberRepository = memberRepository;
     }
 
+    @SuppressWarnings("null")
     private boolean hasAccessToProject(Long projectId, Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) return false;
         String email = auth.getName();

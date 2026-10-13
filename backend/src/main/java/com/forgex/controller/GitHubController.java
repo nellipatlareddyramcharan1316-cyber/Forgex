@@ -76,6 +76,7 @@ public class GitHubController {
         ));
     }
 
+    @SuppressWarnings("null")
     @PostMapping("/oauth/callback")
     public ResponseEntity<Map<String, Object>> handleOAuthCallback(@RequestBody Map<String, String> payload) {
         String code = payload.getOrDefault("code", "demo_code_123");
