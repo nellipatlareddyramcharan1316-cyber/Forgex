@@ -6,17 +6,46 @@ import os
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
+AUTH_TOKEN = None
+
+def get_auth_token():
+    global AUTH_TOKEN
+    if AUTH_TOKEN:
+        return AUTH_TOKEN
+    try:
+        req = urllib.request.Request(
+            "http://127.0.0.1:8080/api/auth/login",
+            data=json.dumps({"email": "dev@forgex.io", "password": "Password123!"}).encode('utf-8'),
+            headers={'Content-Type': 'application/json'}
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode())
+            AUTH_TOKEN = data.get("token")
+    except Exception:
+        pass
+    return AUTH_TOKEN
+
 def post(url, data):
+    headers = {'Content-Type': 'application/json'}
+    if ":8080" in url and "/api/auth/" not in url and "/api/v1/health" not in url:
+        token = get_auth_token()
+        if token:
+            headers['Authorization'] = f"Bearer {token}"
     req = urllib.request.Request(
         url, 
         data=json.dumps(data).encode('utf-8'), 
-        headers={'Content-Type': 'application/json'}
+        headers=headers
     )
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read().decode())
 
 def get(url):
-    req = urllib.request.Request(url)
+    headers = {}
+    if ":8080" in url and "/api/auth/" not in url and "/api/v1/health" not in url:
+        token = get_auth_token()
+        if token:
+            headers['Authorization'] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read().decode())
 

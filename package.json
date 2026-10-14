@@ -8,8 +8,9 @@
     "build": "npm --prefix frontend run build",
     "preview": "npm --prefix frontend run preview",
     "test": "npm --prefix frontend run test:run",
+    "test:ai": "python -m pytest ai-service/tests",
     "backend": "mvn -f backend spring-boot:run",
-    "ai": "python -m uvicorn ai-service.main:app --port 8000"
+    "ai": "python -m uvicorn main:app --app-dir ai-service --port 8000"
   },
   "keywords": [
     "ai",

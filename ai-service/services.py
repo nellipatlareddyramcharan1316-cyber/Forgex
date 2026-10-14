@@ -89,6 +89,62 @@ Return a valid JSON object matching this schema:
                     )
         except Exception:
             pass
+
+    if gemini_key:
+        try:
+            prompt = f"""You are an elite enterprise software architect. Decompose the following software requirement into a full architecture proposal, epics, user stories, and acceptance criteria.
+Requirement: {requirement_text}
+
+Return ONLY a valid JSON object matching this schema:
+{{
+  "project_name": "Project Name",
+  "architecture": {{
+    "overview": "Architectural overview text",
+    "suggested_stack": {{"Backend": "Java 21 Spring Boot 3", "Database": "PostgreSQL 16", "Frontend": "React + TypeScript"}},
+    "key_entities": ["Entity1", "Entity2"],
+    "api_endpoints": ["POST /api/v1/auth/login", "GET /api/v1/data"]
+  }},
+  "epics": [
+    {{
+      "epic_name": "Epic 1: Authentication & Access",
+      "description": "Secure access and permissions",
+      "user_stories": [
+        {{
+          "story_key": "US-101",
+          "title": "User Authentication",
+          "description": "Implement authentication workflow",
+          "acceptance_criteria": ["✓ Valid credentials succeed", "✓ Returns signed JWT"],
+          "estimated_points": 3
+        }}
+      ]
+    }}
+  ]
+}}"""
+            with httpx.Client(timeout=15.0) as client:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+                res = client.post(
+                    url,
+                    headers={"Content-Type": "application/json"},
+                    json={
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2}
+                    }
+                )
+                if res.status_code == 200:
+                    raw_text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    payload = json.loads(raw_text)
+                    arch = ArchitectureProposal(**payload["architecture"])
+                    epics = [Epic(**e) for e in payload["epics"]]
+                    return RequirementAnalysisResponse(
+                        status="SUCCESS",
+                        project_name=payload.get("project_name", "AI Decomposed Project"),
+                        architecture=arch,
+                        epics=epics,
+                        total_stories=sum(len(e.user_stories) for e in epics)
+                    )
+        except Exception:
+            pass
+
     return None
 
 # ----------------------------------------------------

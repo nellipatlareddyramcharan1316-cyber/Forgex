@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS code_embeddings (
     symbol_name VARCHAR(255),
     symbol_type VARCHAR(64), -- CLASS, METHOD, INTERFACE, CONFIG
     code_snippet TEXT NOT NULL,
-    embedding VECTOR(1536),
+    embedding VECTOR(384),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

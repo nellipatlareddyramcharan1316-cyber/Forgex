@@ -1,6 +1,9 @@
 package com.forgex.service;
 
+import com.forgex.entity.TrustScoreEntity;
 import com.forgex.model.TrustScoreResult;
+import com.forgex.repository.TrustScoreEntityRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -9,9 +12,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class TrustScoreService {
 
+    private final TrustScoreEntityRepository trustScoreRepository;
     private final Map<String, TrustScoreResult> cache = new ConcurrentHashMap<>();
 
-    public TrustScoreService() {
+    public TrustScoreService(@Autowired(required = false) TrustScoreEntityRepository trustScoreRepository) {
+        this.trustScoreRepository = trustScoreRepository;
         // Seed initial benchmark score
         TrustScoreResult benchmark = new TrustScoreResult();
         benchmark.setId("ts-seed-01");
@@ -118,10 +123,49 @@ public class TrustScoreService {
         ));
 
         cache.put(result.getTaskKey(), result);
+
+        if (trustScoreRepository != null) {
+            try {
+                TrustScoreEntity entity = new TrustScoreEntity(
+                        result.getTaskKey(),
+                        finalScore,
+                        verdict,
+                        color,
+                        canDeploy,
+                        msg,
+                        Math.round(unitScore * 10.0) / 10.0,
+                        Math.round(intScore * 10.0) / 10.0,
+                        secScore,
+                        secretsScore,
+                        depScore,
+                        requirementCoveragePct,
+                        qualityScore
+                );
+                trustScoreRepository.save(entity);
+            } catch (Exception ignored) {}
+        }
         return result;
     }
 
     public Optional<TrustScoreResult> getScoreByTaskKey(String taskKey) {
-        return Optional.ofNullable(cache.get(taskKey));
+        if (cache.containsKey(taskKey)) {
+            return Optional.ofNullable(cache.get(taskKey));
+        }
+        if (trustScoreRepository != null) {
+            return trustScoreRepository.findTopByTaskKeyOrderByCalculatedAtDesc(taskKey)
+                    .map(e -> {
+                        TrustScoreResult res = new TrustScoreResult();
+                        res.setId("ts-" + e.getId());
+                        res.setTaskKey(e.getTaskKey());
+                        res.setOverallScore(e.getOverallScore());
+                        res.setVerdict(e.getVerdict());
+                        res.setBadgeColor(e.getBadgeColor());
+                        res.setSafeToDeploy(e.getSafeToDeploy());
+                        res.setSummaryMessage(e.getSummaryMessage());
+                        res.setCalculatedAt(e.getCalculatedAt());
+                        return res;
+                    });
+        }
+        return Optional.empty();
     }
 }
